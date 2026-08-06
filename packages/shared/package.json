@@ -1,0 +1,52 @@
+{
+  "name": "@photogai/shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "摄影师 AI 助手三端共享包：领域类型 / HTTP 客户端 / API 端点 / 领域逻辑 / Zustand store / TanStack Query hooks。不含任何 UI 库依赖。",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types/index.ts",
+    "./api": "./src/api/index.ts",
+    "./hooks": "./src/hooks/index.ts",
+    "./store": "./src/store/index.ts",
+    "./http": "./src/http/index.ts",
+    "./domain": "./src/domain/index.ts",
+    "./package.json": "./package.json",
+    "./*": "./src/*.ts"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "echo \"[@photogai/shared] no tests yet (T0 skeleton)\" && exit 0"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.51.0",
+    "axios": "^1.7.0",
+    "react": "^18.3.0",
+    "zustand": "^4.5.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": false
+    },
+    "@tanstack/react-query": {
+      "optional": false
+    },
+    "zustand": {
+      "optional": false
+    },
+    "axios": {
+      "optional": false
+    }
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}

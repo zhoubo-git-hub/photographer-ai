@@ -1,0 +1,78 @@
+classDiagram
+    %% ===== 既有核心实体（阶段1/3） =====
+    class Studio {
+        +Long id
+        +String name
+        +String planType   %% FREE|PRO|TEAM
+        +Long ownerUserId
+    }
+    class User {
+        +Long id
+        +Long studioId
+        +String username
+        +String passwordHash
+        +String role        %% OWNER|ADMIN|MEMBER|READONLY
+    }
+    class Order {
+        +Long id
+        +Long studioId
+        +Long customerId
+        +BigDecimal amount
+        +OrderStatus status
+        +Long assignedTo   %% 团队分配(可空)
+    }
+    class Customer {
+        +Long id
+        +Long studioId
+        +String name
+        +String wechatId
+    }
+    class Subscription {
+        +Long id
+        +Long studioId
+        +String planType   %% PRO|TEAM
+        +String status     %% ACTIVE|CANCELLED|EXPIRED
+        +LocalDateTime expiresAt
+    }
+
+    %% ===== 多端扩张新增实体 =====
+    class UserWechat {
+        +Long id
+        +Long userId
+        +Long studioId
+        +String appType    %% WEB|APP|MP
+        +String openid
+        +String unionId    %% 三端同一 studio 的纽带
+        +String sessionKey %% 仅 MP
+    }
+    class DeviceToken {
+        +Long id
+        +Long userId
+        +Long studioId
+        +String platform   %% IOS|ANDROID|MP
+        +String token      %% Expo/FCM/APNs/MP openid
+        +String appVersion
+        +LocalDateTime lastActiveAt
+    }
+    class UploadFile {
+        +Long id
+        +Long studioId
+        +Long ownerUserId
+        +String bizType    %% ORDER_SAMPLE|CUSTOMER_AVATAR|STUDIO_LOGO
+        +String fileKey
+        +String url
+    }
+
+    %% ===== 关系 =====
+    Studio "1" --> "*" User : 团队多用户
+    Studio "1" --> "*" Order : 隔离
+    Studio "1" --> "*" Customer : 隔离
+    Studio "1" --> "*" Subscription : 隔离
+    Studio "1" --> "*" UserWechat : 隔离
+    Studio "1" --> "*" DeviceToken : 隔离
+    Studio "1" --> "*" UploadFile : 隔离
+    User "1" --> "*" UserWechat : 绑定多端
+    User "1" --> "*" DeviceToken : 多设备
+    User "1" --> "*" Order : createdBy
+    Customer "1" --> "*" Order : 历史订单
+    Order "0..1" --> "assignedTo" User : 团队分配(可空)

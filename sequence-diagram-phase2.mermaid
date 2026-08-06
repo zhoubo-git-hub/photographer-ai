@@ -1,0 +1,80 @@
+%% 阶段2 调用时序图（3 张）：①提醒规则触发→通知中心 ②复购引擎扫描+话术 ③AI沟通助手
+
+sequenceDiagram
+    participant U as 摄影师
+    participant F as OrderDetailDrawer(前端)
+    participant C as OrderController
+    participant S as OrderService
+    participant RR as ReminderRuleService
+    participant RM as ReminderService
+    participant NC as NotificationCenter(前端)
+
+    Note over U,NC: ① 提醒规则触发 → 生成 reminder → 通知中心
+    U->>F: 推进状态 → DELIVER
+    F->>C: POST /api/orders/{id}/status {toStatus:DELIVER}
+    C->>S: changeStatus(studioId,id,DELIVER,operator)
+    S->>S: 状态机校验通过 + 写 status_history + 回填 customer.lastShootDate
+    S->>RR: findEnabled(studioId, event=DELIVER)
+    alt PRO 且有启用规则
+        RR-->>S: [规则: DELIVER offset=+3]
+        S->>RM: create(studioId,orderId,customerId,DELIVER_REVIEW, now+3d)
+    else FREE 或无规则 → 回退硬编码(不回归)
+        S->>RM: create(... 阶段1 同等行为)
+    end
+    RM-->>S: Reminder(id)
+    S-->>C: OrderDTO
+    C-->>F: 200
+    F->>NC: 刷新 GET /api/reminders（角标=已到期&PENDING）
+    NC-->>U: 铃铛角标 + 抽屉展示新提醒
+
+    Note over U,NC: ② 复购引擎 @Scheduled 扫描 → REPURCHASE 提醒 + LLM 话术
+    participant SCH as @Scheduled(每日02:30)
+    participant RS as RepurchaseService
+    participant ST as StudioRepository
+    participant CR as CustomerRepository
+    participant AC as AiCommService
+    participant LL as LlmClient
+    SCH->>RS: scan()
+    RS->>ST: findAllByPlanType('PRO')
+    loop 每个 PRO 工作室
+        RS->>CR: findRepurchaseCandidates(studioId, today)
+        loop 每个候选客户(lastShootDate+cycle<=today & enabled)
+            RS->>RM: existsByCustomerAndType(customerId, REPURCHASE, PENDING)?
+            alt 不存在 → 幂等生成
+                RS->>RM: create(studioId,null,customerId,REPURCHASE, dueAt=cycleEnd)
+            else 已存在 → 跳过
+            end
+        end
+    end
+    U->>RP as RepurchasePage(前端)
+    RP->>CC as AiCommController: POST /api/ai/comm {customerId, scenario:REPURCHASE}
+    CC->>AC: generate(req, studioId)
+    AC->>AC: requirePro(studioId)  -- FREE 抛 403
+    AC->>LL: complete(prompt=客户画像+历史订单)
+    alt LLM 可用
+        LL-->>AC: 复购邀约文案
+    else LLM 降级
+        AC-->>AC: 规则模板
+    end
+    AC-->>CC: CommResponse{text, fallback}
+    CC-->>RP: 200 → 展示+复制
+
+    Note over U,NC: ③ AI 沟通助手生成话术（批次 B）
+    participant OD as OrderDetailDrawer
+    participant CA as CommAssistantDrawer(前端)
+    U->>OD: 打开订单详情 → 点「AI 沟通助手」
+    OD->>CA: 打开浮层(orderId)
+    U->>CA: 选场景「催尾款」→ 生成
+    CA->>CC: POST /api/ai/comm {orderId, scenario:URGE_FINAL}
+    CC->>AC: generate(req, studioId)
+    AC->>AC: requirePro(studioId)  -- FREE→403→UpgradeModal
+    AC->>OS as OrderService: getOrder(studioId, orderId)
+    AC->>CS as CustomerService: getCustomer(customerId)
+    AC->>LL: complete(prompt=订单+客户字段)
+    alt LLM 可用
+        LL-->>AC: 话术
+    else 降级
+        AC-->>AC: 规则模板(填称呼/金额/差额)
+    end
+    AC-->>CC: CommResponse{text, fallback}
+    CC-->>CA: 200 → 展示 + [复制][重新生成]

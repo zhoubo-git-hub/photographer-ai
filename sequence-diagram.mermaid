@@ -1,0 +1,93 @@
+%% ===== ① 新建订单并触发档期冲突校验 =====
+sequenceDiagram
+    actor U as 摄影师
+    participant F as OrdersPage(前端)
+    participant C as OrderController
+    participant S as OrderService
+    participant Q as QuotaService
+    participant K as ScheduleConflictService
+    participant R as OrderRepository
+
+    U->>F: 填写订单 → 点击“新建”
+    F->>C: POST /api/orders (OrderCreateRequest + JWT)
+    C->>S: create(req, currentUser)
+    S->>Q: ensureWithinLimit(studioId)
+    alt 免费版且 order_count>=10
+        Q-->>S: throw QuotaExceeded(403)
+        S-->>C: 403 + UpgradeModal 提示
+        C-->>F: 403 → 弹升级引导
+    else 未触顶
+        Q-->>S: ok
+        S->>K: checkConflict(studioId, shootDate, shootEndDate, excludeOrderId=null)
+        alt 时间段重叠
+            K-->>S: List~ConflictDTO~ 非空
+            S-->>C: 409 CONFLICT
+            C-->>F: 409 → 显示 ConflictDialog(红色冲突)
+        else 无冲突
+            K-->>S: 空
+            S->>R: save(order)
+            R-->>S: Order(id)
+            S-->>C: OrderDTO
+            C-->>F: 200 → 列表新增卡片
+        end
+    end
+
+%% ===== ② AI 报价助手调用链路 =====
+sequenceDiagram
+    actor U as 摄影师
+    participant F as AiQuotePage(前端)
+    participant C as AiQuoteController
+    participant S as AiQuoteService
+    participant Q as QuotaService
+    participant L as LlmClient
+    participant M as LLM API(DeepSeek)
+
+    U->>F: 填 类型/时长/张数/地区/风格 → 生成报价
+    F->>C: POST /api/ai/quote (QuoteRequest + JWT)
+    C->>S: quote(req, studioId)
+    S->>Q: checkAiQuoteLimit(studioId)
+    alt 免费版当月已用>=5
+        Q-->>S: throw AiQuotaExceeded(403)
+        S-->>C: 403 → 提示升级
+        C-->>F: 403 → 升级引导
+    else 额度内
+        Q-->>S: ok
+        S->>L: complete(promptTemplate(req))
+        L->>M: POST /v1/chat/completions (JSON mode)
+        M-->>L: {priceLow,priceHigh,basis,script}
+        L-->>S: QuoteResponse
+        S->>Q: incrementAiQuoteUsed(studioId)
+        S-->>C: QuoteResponse
+        C-->>F: 200 → 展示区间+依据+话术
+        F->>U: [一键填入订单][复制话术] 剩余免费 N/5
+    end
+
+%% ===== ③ 状态流转触发提醒（P0-2 留痕+触发点） =====
+sequenceDiagram
+    actor U as 摄影师
+    participant F as OrderDetailDrawer(前端)
+    participant C as OrderController
+    participant SM as OrderStateMachine
+    participant S as OrderService
+    participant H as StatusHistory(Repo)
+    participant RM as Reminder(Repo)
+
+    U->>F: 选择 推进/回退 状态
+    F->>C: POST /api/orders/{id}/status {toStatus}
+    C->>SM: canTransition(from, to)
+    alt 非相邻/非法
+        SM-->>C: false → 400 拦截
+    else 合法
+        SM-->>C: true
+        C->>S: changeStatus(orderId, toStatus, operator)
+        S->>H: insert(from,to,operator,now)
+        alt toStatus==DEPOSIT
+            S->>RM: insert(DEPOSIT_DUE, dueAt=now+3d)
+        else toStatus==SHOOT
+            S->>RM: insert(SHOOT_TOMORROW, dueAt=shootDate-1d)
+        else toStatus==EDIT
+            S->>RM: insert(EDIT_OVERDUE, dueAt=now+7d)
+        end
+        S-->>C: OrderDTO
+        C-->>F: 200 → 卡片移列 + 提醒列表新增
+    end

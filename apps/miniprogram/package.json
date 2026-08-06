@@ -1,0 +1,48 @@
+{
+  "name": "@photogai/miniprogram",
+  "version": "1.0.0",
+  "private": true,
+  "description": "摄影师 AI 接单跟单助手 — 微信小程序端（Taro 3.6 + React 18），查看/轻操作版。业务逻辑全部复用 @photogai/shared。",
+  "scripts": {
+    "dev:weapp": "taro build --type weapp --watch",
+    "build:weapp": "taro build --type weapp",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "test": "echo \"[@photogai/miniprogram] no unit tests yet (T7 首版)\" && exit 0"
+  },
+  "dependencies": {
+    "@babel/runtime": "^7.24.0",
+    "@photogai/shared": "workspace:*",
+    "@tanstack/react-query": "^5.51.0",
+    "@tarojs/components": "3.6.40",
+    "@tarojs/helper": "3.6.40",
+    "@tarojs/plugin-framework-react": "3.6.40",
+    "@tarojs/plugin-platform-weapp": "3.6.40",
+    "@tarojs/react": "3.6.40",
+    "@tarojs/runtime": "3.6.40",
+    "@tarojs/shared": "3.6.40",
+    "@tarojs/taro": "3.6.40",
+    "axios": "^1.7.0",
+    "dayjs": "^1.11.13",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "taro-ui": "^3.4.1",
+    "zustand": "^4.5.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.24.0",
+    "@tarojs/cli": "3.6.40",
+    "@tarojs/taro-loader": "3.6.40",
+    "@tarojs/webpack5-runner": "3.6.40",
+    "@types/react": "^18.3.0",
+    "babel-preset-taro": "3.6.40",
+    "postcss": "^8.4.38",
+    "sass": "^1.77.0",
+    "typescript": "^5.5.0",
+    "webpack": "^5.91.0"
+  },
+  "browserslist": [
+    "defaults and fully supports es6-module",
+    "maintained node versions"
+  ]
+}

@@ -1,0 +1,48 @@
+.orders-page {
+  @include column;
+
+  min-height: 100%;
+
+  &__filter {
+    @include row(flex-start, center);
+
+    padding: $space-sm $space-md;
+    overflow-x: auto;
+    white-space: nowrap;
+    background: $color-paper;
+    border-bottom: 1px solid $color-divider;
+  }
+
+  &__chip {
+    flex: none;
+    margin-right: $space-xs;
+    padding: $space-xxs $space-sm;
+    border-radius: $radius-pill;
+    background: $color-bg;
+
+    &--active {
+      background: $color-primary-soft;
+
+      .orders-page__chip-text {
+        color: $color-primary;
+        font-weight: $weight-medium;
+      }
+    }
+  }
+
+  &__chip-text {
+    font-size: $font-sm;
+    color: $color-text-secondary;
+  }
+
+  &__list {
+    padding: $space-md;
+  }
+
+  &__count {
+    display: block;
+    margin-bottom: $space-sm;
+    font-size: $font-sm;
+    color: $color-text-secondary;
+  }
+}

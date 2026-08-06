@@ -1,0 +1,6 @@
+# pnpm workspace 成员声明。
+# 注意：photographer-ai-backend/ 是 Java/Maven 工程，故意不纳入 workspace，
+# 避免 Java 工具链与 npm 工具链互相污染（CI 中由独立的 Maven job 构建）。
+packages:
+  - 'packages/*'
+  - 'apps/*'

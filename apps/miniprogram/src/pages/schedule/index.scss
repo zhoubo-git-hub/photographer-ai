@@ -1,0 +1,85 @@
+.schedule-page {
+  min-height: 100%;
+  padding-bottom: $space-md;
+
+  &__bar {
+    @include row(space-between, center);
+
+    padding: $space-md;
+    background: $color-paper;
+    border-bottom: 1px solid $color-divider;
+  }
+
+  &__arrow {
+    width: 64px;
+    height: 64px;
+    border-radius: $radius-pill;
+    background: $color-bg;
+    text-align: center;
+    line-height: 64px;
+  }
+
+  &__arrow-text {
+    font-size: $font-xl;
+    color: $color-ink;
+  }
+
+  &__month {
+    font-size: $font-md;
+    font-weight: $weight-medium;
+    color: $color-ink;
+  }
+
+  &__group {
+    padding: 0 $space-md;
+    margin-top: $space-md;
+  }
+
+  &__date {
+    display: block;
+    margin-bottom: $space-xs;
+    font-size: $font-sm;
+    font-weight: $weight-medium;
+    color: $color-text-secondary;
+  }
+
+  &__item {
+    @include card;
+    @include row(space-between, center);
+
+    margin-bottom: $space-xs;
+    padding: $space-sm $space-md;
+
+    &--conflict {
+      border-color: $color-warning;
+      background: $color-warning-soft;
+    }
+  }
+
+  &__item-main {
+    @include column(flex-start, flex-start);
+
+    flex: 1;
+    margin-right: $space-sm;
+  }
+
+  &__item-title {
+    @include ellipsis;
+
+    font-size: $font-base;
+    color: $color-ink;
+  }
+
+  &__item-range {
+    margin-top: 2px;
+    font-size: $font-xs;
+    color: $color-text-secondary;
+  }
+
+  &__conflict-note {
+    display: block;
+    margin-top: $space-xxs;
+    font-size: $font-xs;
+    color: $color-warning;
+  }
+}

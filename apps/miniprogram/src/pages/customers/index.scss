@@ -1,0 +1,22 @@
+.customers-page {
+  min-height: 100%;
+
+  &__search {
+    padding: $space-md;
+    background: $color-paper;
+    border-bottom: 1px solid $color-divider;
+  }
+
+  &__input {
+    height: 72px;
+    padding: 0 $space-md;
+    border-radius: $radius-pill;
+    background: $color-bg;
+    font-size: $font-base;
+    color: $color-ink;
+  }
+
+  &__list {
+    padding: $space-md;
+  }
+}

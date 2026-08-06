@@ -1,0 +1,49 @@
+.customer-card {
+  @include card;
+  @include column;
+
+  padding: $space-md;
+  margin-bottom: $space-md;
+
+  &:active {
+    opacity: 0.96;
+  }
+
+  &__top {
+    @include row(space-between, center);
+  }
+
+  &__name {
+    font-size: $font-md;
+    font-weight: $weight-medium;
+    color: $color-ink;
+  }
+
+  &__count {
+    font-size: $font-sm;
+    color: $color-primary;
+  }
+
+  &__meta {
+    @include row(flex-start, center);
+
+    flex-wrap: wrap;
+    margin-top: $space-xs;
+  }
+
+  &__line {
+    margin-right: $space-md;
+    font-size: $font-sm;
+    color: $color-text-secondary;
+
+    &--empty {
+      color: $color-divider;
+    }
+  }
+
+  &__last {
+    margin-top: $space-xs;
+    font-size: $font-xs;
+    color: $color-text-secondary;
+  }
+}

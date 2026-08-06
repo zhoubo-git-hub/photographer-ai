@@ -1,0 +1,77 @@
+classDiagram
+    %% 既有（仅展示与阶段3 相关）
+    class Studio {
+        +Long id
+        +String name
+        +String planType  %% FREE|PRO|TEAM
+    }
+    class User {
+        +Long id
+        +Long studioId
+        +String username
+        +String role  %% OWNER|ADMIN|MEMBER|READONLY
+    }
+    class Order {
+        +Long id
+        +Long customerId
+        +BigDecimal amount
+        +OrderStatus status
+        +Long assignedTo  %% 阶段3 新增(可空)
+    }
+
+    %% 阶段3 新增
+    class Subscription {
+        +Long id
+        +Long studioId
+        +String planType   %% PRO|TEAM
+        +String status     %% ACTIVE|CANCELLED|EXPIRED
+        +LocalDateTime startedAt
+        +LocalDateTime expiresAt
+        +boolean autoRenew
+        +String channel
+    }
+    class PaymentOrder {
+        +Long id
+        +Long studioId
+        +String planType
+        +String channel    %% WECHAT|MOCK|ALIPAY
+        +String outTradeNo %% 唯一
+        +BigDecimal amount
+        +String status     %% PENDING|PAID|FAILED
+        +LocalDateTime paidAt
+        +Long subscriptionId
+    }
+    class TeamInvitation {
+        +Long id
+        +Long studioId
+        +Long inviterId
+        +String email
+        +String phone
+        +String role       %% ADMIN|MEMBER|READONLY
+        +String token      %% 唯一
+        +String status     %% PENDING|ACCEPTED|EXPIRED
+        +LocalDateTime expiresAt
+        +Long acceptedUserId
+    }
+    class QuoteCalibration {
+        +Long id
+        +Long studioId
+        +String dimensionKey   %% 如 上海|婚纱写真
+        +String dimensionLabel
+        +int sampleCount
+        +BigDecimal currentCoef
+        +BigDecimal suggestedCoef
+        +int offsetPct
+        +boolean withinBoundary
+        +String status     %% PENDING|APPLIED|REJECTED
+        +LocalDateTime appliedAt
+    }
+
+    Studio "1" --> "*" Subscription : 隔离
+    Studio "1" --> "*" PaymentOrder : 隔离
+    Studio "1" --> "*" TeamInvitation : 隔离
+    Studio "1" --> "*" QuoteCalibration : 隔离
+    Studio "1" --> "*" User : 团队(多用户)
+    User "1" --> "*" TeamInvitation : 邀请人
+    Order "0..1" --> "assignedTo" User : 分配(可空)
+    Subscription "1" --> "0..1" PaymentOrder : 由支付单激活

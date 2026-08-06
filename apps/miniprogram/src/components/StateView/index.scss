@@ -1,0 +1,49 @@
+.state-view {
+  @include column(center, center);
+
+  padding: $space-xl $space-md;
+  text-align: center;
+
+  &__spinner {
+    width: 48px;
+    height: 48px;
+    margin-bottom: $space-sm;
+    border: 4px solid $color-divider;
+    border-top-color: $color-primary;
+    border-radius: 50%;
+    animation: state-view-spin 0.8s linear infinite;
+  }
+
+  &__title {
+    font-size: $font-md;
+    font-weight: $weight-medium;
+    margin-bottom: $space-xs;
+
+    &--error {
+      color: $color-error;
+    }
+  }
+
+  &__text {
+    font-size: $font-base;
+    color: $color-text-secondary;
+    line-height: 1.6;
+  }
+
+  &__retry {
+    margin-top: $space-md;
+    padding: 0 $space-lg;
+    height: 64px;
+    line-height: 64px;
+    font-size: $font-base;
+    color: $color-primary;
+    background: $color-primary-soft;
+    border-radius: $radius-base;
+  }
+}
+
+@keyframes state-view-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

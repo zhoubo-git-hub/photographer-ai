@@ -1,0 +1,61 @@
+.order-card {
+  @include card;
+  @include column;
+
+  padding: $space-md;
+  margin-bottom: $space-md;
+
+  &:active {
+    opacity: 0.96;
+  }
+
+  &__top {
+    @include row(space-between, center);
+  }
+
+  &__title {
+    @include ellipsis;
+
+    flex: 1;
+    font-size: $font-md;
+    font-weight: $weight-medium;
+    color: $color-ink;
+  }
+
+  &__meta {
+    @include row(flex-start, center);
+
+    margin-top: $space-xs;
+  }
+
+  &__customer {
+    font-size: $font-base;
+    color: $color-text-primary;
+  }
+
+  &__type {
+    margin-left: $space-sm;
+    padding: $space-xxs $space-xs;
+    border-radius: $radius-pill;
+    background: $color-bg;
+    font-size: $font-xs;
+    color: $color-text-secondary;
+  }
+
+  &__bottom {
+    @include row(space-between, center);
+
+    margin-top: $space-sm;
+  }
+
+  &__amount {
+    font-size: $font-md;
+    font-weight: $weight-bold;
+    color: $color-primary;
+  }
+
+  &__date {
+    font-size: $font-sm;
+    color: $color-text-secondary;
+  }
+}

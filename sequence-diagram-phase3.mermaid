@@ -1,0 +1,92 @@
+sequenceDiagram
+    actor U as 摄影师
+    participant F as BillingPage(前端)
+    participant BC as BillingController
+    participant BS as BillingService
+    participant PG as PaymentGateway(Mock)
+    participant PO as PaymentOrderRepo
+    participant SS as SubscriptionService
+    participant SR as StudioRepo
+    participant NC as NotificationCenter(前端)
+
+    U->>F: 选「专业版 ¥39」+ 沙箱Mock → 立即订阅
+    F->>BC: POST /api/billing/subscribe {planType:PRO,channel:MOCK}
+    BC->>BS: subscribe(studioId, PRO, MOCK)
+    BS->>PG: createOrder(PRO)  -- Mock 返回 outTradeNo+假二维码
+    PG-->>BS: {outTradeNo, qrCode}
+    BS->>PO: save(PaymentOrder PENDING)
+    BS-->>BC: SubscribeResponse{qrCode}
+    BC-->>F: 200 → 展示"待支付"态（plan_type 仍 FREE）
+
+    U->>F: 点「模拟支付成功」
+    F->>BC: POST /api/billing/mock-pay {outTradeNo}
+    BC->>BS: onPaid(outTradeNo)  -- 与真实回调同路径
+    BS->>PO: find + 置 PAID
+    BS->>SS: activate(studioId, PRO, 30d)
+    SS->>SS: 写 subscription(ACTIVE, expiresAt=now+30d)
+    SS->>SR: studio.plan_type = PRO（同步缓存）
+    SS->>SR: quota.plan_type = PRO
+    SS-->>BS: SubscriptionView
+    BS-->>BC: SubscriptionView
+    BC-->>F: 200 → 刷新
+    F->>NC: 刷新 + 顶部提示"已升级专业版"
+
+---
+
+sequenceDiagram
+    actor U as 摄影师
+    participant F as QuoteCalibrationPanel(前端)
+    participant QC as QuoteCalibrationController
+    participant QS as QuoteCalibrationService
+    participant OR as OrderRepository
+    participant CR as QuoteCalibrationRepo
+    participant AQ as AiQuoteService
+
+    U->>F: 打开「AI 报价校准」
+    F->>QC: GET /api/ai/quote-calibration
+    QC->>QS: list(studioId)  -- 首次触发 scan
+    QS->>OR: 查历史成交(status∈{DELIVER,REPURCHASE} 且 amount 非空)
+    QS->>QS: 按维度(地区|类型|风格)聚合 → 计算建议系数
+    QS->>QS: 安全边界: offset 截断 ±15%；sample<20 → withinBoundary=false
+    QS->>CR: upsert(建议, status=PENDING)
+    QS-->>QC: List<QuoteCalibrationDTO>
+    QC-->>F: 200 → 展示建议+边界提示
+
+    U->>F: 点「采纳」某条（边界内）
+    F->>QC: POST /api/ai/quote-calibration/apply {id}
+    QC->>QS: apply(id)
+    QS->>CR: 读建议 → 若 sample<20 或 |offset|>15 抛 CALIBRATION_* (409)
+    QS->>CR: 置 status=APPLIED（写回 suggestedCoef）
+    QS-->>QC: QuoteCalibrationDTO(APPLIED)
+    QC-->>F: 200 → 面板标记"已采纳"
+
+---
+
+sequenceDiagram
+    actor O as OWNER
+    actor M as 受邀人
+    participant TP as TeamPage(前端)
+    participant TC as TeamController
+    participant TS as TeamService
+    participant TI as TeamInvitationRepo
+    participant UR as UserRepository
+    participant JU as JwtUtil
+
+    O->>TP: 点「邀请成员」→ 填 email + 角色 ADMIN
+    TP->>TC: POST /api/team/invite {email, role:ADMIN}
+    TC->>TS: invite(studioId, inviterId, email, ADMIN)
+    TS->>TS: assertManageTeam(role)  -- 非 OWNER/ADMIN 抛 403
+    TS->>TS: countActiveMembers >=5? → MEMBER_LIMIT_EXCEEDED(403)
+    TS->>TI: save(team_invitation PENDING, token, expiresAt=+7d)
+    TS-->>TC: TeamMemberDTO(含 token 摘要)
+    TC-->>TP: 200 → 展示邀请链接/码
+
+    M->>TP: 持 token 打开「接受邀请」→ 设用户名/密码
+    TP->>TC: POST /api/team/accept {token, username, password}
+    TC->>TS: accept(token, username, password)
+    TS->>TI: findByToken → PENDING? 否则 INVALID_INVITATION(400)
+    TS->>UR: 建 User(studio_id=本studio, role=邀请值)
+    TS->>TI: status=ACCEPTED, acceptedUserId
+    TS->>JU: generateToken(user)
+    TS-->>TC: AuthResponse(登录态)
+    TC-->>TP: 200 → 受邀人进入同一 Studio

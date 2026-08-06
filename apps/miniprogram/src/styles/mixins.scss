@@ -1,0 +1,64 @@
+// ─────────────────────────────────────────────────────────────
+// 通用 mixin（与 theme.scss 一并通过 config sass.resource 全局注入，
+// 页面/组件 scss 无需手动 @import）。
+// 本文件只定义 mixin，不产出任何 CSS 规则，重复注入不会产生冗余样式。
+// ─────────────────────────────────────────────────────────────
+
+/// 标准卡片：白底 + 卡片圆角 + 轻边框。
+@mixin card {
+  background: $color-paper;
+  border-radius: $radius-card;
+  border: 1px solid $color-divider;
+  box-sizing: border-box;
+}
+
+/// 单行文本省略。
+@mixin ellipsis {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/// 多行文本省略（$lines 行）。
+@mixin ellipsis-multi($lines: 2) {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: $lines;
+}
+
+/// 横向 flex 布局。
+@mixin row($justify: flex-start, $align: center) {
+  display: flex;
+  flex-direction: row;
+  justify-content: $justify;
+  align-items: $align;
+}
+
+/// 纵向 flex 布局。
+@mixin column($justify: flex-start, $align: stretch) {
+  display: flex;
+  flex-direction: column;
+  justify-content: $justify;
+  align-items: $align;
+}
+
+/// 底部细分隔线（最后一项自动去线）。
+@mixin divider-bottom {
+  border-bottom: 1px solid $color-divider;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+/// 胶囊标签。
+@mixin pill($bg, $fg) {
+  display: inline-block;
+  padding: $space-xxs $space-sm;
+  border-radius: $radius-pill;
+  background: $bg;
+  color: $fg;
+  font-size: $font-sm;
+  line-height: 1.6;
+}

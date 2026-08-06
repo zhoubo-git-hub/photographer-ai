@@ -1,0 +1,167 @@
+classDiagram
+    %% ===== apps/miniprogram 平台适配层（T7 新增） =====
+    class TaroStorageAdapter {
+        +getItem(key) string|null
+        +setItem(key, value) void
+        +removeItem(key) void
+    }
+    class HttpBootstrap {
+        +setupHttp() void
+        -onUnauthorized() void
+        -onPaymentRequired() void
+    }
+    class WechatAuthService {
+        +loginWithWechat() Promise~void~
+        -getCode() Promise~string~
+    }
+    class NavService {
+        +ROUTES
+        +toLogin() void
+        +toOrderDetail(id) void
+        +toCustomerDetail(id) void
+    }
+    class ToastBridge {
+        +bindUiStore() void
+        +showApiError(err) void
+    }
+    class QueryClientFactory {
+        +createQueryClient() QueryClient
+    }
+    class AppRoot {
+        +componentDidMount() void
+        +render() ReactNode
+    }
+
+    %% ===== packages/shared（只读，T4 已就位） =====
+    class StorageAdapter {
+        <<interface shared>>
+        +getItem(key) string|null
+        +setItem(key, value) void
+        +removeItem(key) void
+    }
+    class useAuthStore {
+        <<zustand shared>>
+        +token string|null
+        +user User|null
+        +studio Studio|null
+        +setAuth(auth) void
+        +logout() void
+        +setStudioPlanType(plan) void
+    }
+    class useUiStore {
+        <<zustand shared>>
+        +openUpgrade(msg) void
+        +setExpiredBanner(v) void
+        +pendingQuote
+    }
+    class HttpClient {
+        <<shared>>
+        +http AxiosInstance
+        +configureHttpClient(opts) void
+        +request(config) Promise~T~
+        +ApiError
+    }
+    class SharedApi {
+        <<shared>>
+        +authApi.wechatLogin()
+        +orderApi.list()
+        +orderApi.get()
+        +customerApi.list()
+        +customerApi.get()
+        +scheduleApi.month()
+        +aiApi.quote()
+        +reminderApi.list()
+    }
+    class SharedHooks {
+        <<shared>>
+        +useAuth()
+        +useOrders()
+        +useOrder()
+        +useCustomers()
+        +useCustomer()
+        +useQuote()
+        +queryKeys
+    }
+    class SharedDomain {
+        <<shared>>
+        +STATUS_LABELS
+        +STATUS_COLUMNS
+        +NEXT_STATUSES
+        +REMINDER_LABELS
+        +THEME_COLORS
+        +RADIUS
+        +formatAmount()
+        +formatDate()
+        +formatDateTime()
+        +formatPriceRange()
+        +messageOfErrorCode()
+    }
+
+    %% ===== 页面层（T7 新增） =====
+    class LoginPage
+    class OrdersPage
+    class OrderDetailPage
+    class SchedulePage
+    class QuotePage
+    class CustomersPage
+    class CustomerDetailPage
+    class RemindersPage
+    class NoticesPage
+    class MinePage
+
+    %% ===== 通用组件（T7 新增） =====
+    class PageContainer
+    class StateView
+    class StatusTag
+    class FieldRow
+    class OrderCard
+    class CustomerCard
+    class ReminderCard
+
+    %% ===== 关系 =====
+    TaroStorageAdapter ..|> StorageAdapter : implements
+    TaroStorageAdapter --> useAuthStore : setStorageAdapter 注入后触发 rehydrate
+    HttpBootstrap --> HttpClient : http.defaults.adapter + configureHttpClient
+    HttpBootstrap --> NavService : 401 reLaunch / 402 modal
+    ToastBridge --> useUiStore : subscribe
+    ToastBridge --> SharedDomain : messageOfErrorCode
+
+    AppRoot --> TaroStorageAdapter : ① 先注入存储
+    AppRoot --> HttpBootstrap : ② 再配置 http
+    AppRoot --> ToastBridge : ③ 绑定提示
+    AppRoot --> QueryClientFactory : ④ Provider 包裹
+
+    WechatAuthService --> SharedApi : authApi.wechatLogin
+    WechatAuthService --> useAuthStore : setAuth
+    WechatAuthService --> NavService : switchTab 订单页
+
+    LoginPage --> WechatAuthService
+    OrdersPage --> SharedHooks : useOrders
+    OrderDetailPage --> SharedHooks : useOrder
+    CustomersPage --> SharedHooks : useCustomers
+    CustomerDetailPage --> SharedHooks : useCustomer
+    QuotePage --> SharedHooks : useQuote
+    MinePage --> SharedHooks : useAuth
+    SchedulePage --> SharedApi : scheduleApi.month
+    RemindersPage --> SharedApi : reminderApi.list
+    NoticesPage --> SharedApi : reminderApi.list
+
+    OrdersPage --> OrderCard
+    OrdersPage --> PageContainer
+    OrdersPage --> StateView
+    OrderCard --> StatusTag
+    OrderCard --> SharedDomain : formatAmount/formatDate
+    OrderDetailPage --> FieldRow
+    OrderDetailPage --> SharedDomain
+    SchedulePage --> SharedDomain : THEME_COLORS.error 冲突标记
+    QuotePage --> SharedDomain : formatPriceRange
+    CustomersPage --> CustomerCard
+    RemindersPage --> ReminderCard
+    NoticesPage --> ReminderCard
+    ReminderCard --> SharedDomain : REMINDER_LABELS
+    StatusTag --> SharedDomain : STATUS_LABELS
+
+    SharedHooks --> SharedApi
+    SharedApi --> HttpClient
+    HttpClient --> useAuthStore : getToken / logout
+    HttpClient --> useUiStore : 402/403 升级引导

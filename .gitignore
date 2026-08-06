@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+.temp/
+.taro/
+.cache/
+out/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+
+# Temp
+_tmp_*/
+.tmp/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+
+# Python (backend)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Coverage
+coverage/
+
+# Taro machine-specific private config
+**/project.private.config.json

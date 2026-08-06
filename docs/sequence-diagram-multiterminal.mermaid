@@ -1,0 +1,109 @@
+%% ① 微信登录打通三端同一 studio（小程序首登 → App 复登）
+sequenceDiagram
+    actor U as 同一摄影师
+    participant MP as 小程序(wx.login)
+    participant APP as App(开放平台)
+    participant WC as WechatAuthController
+    participant WS as WechatService
+    participant WX as 微信接口
+    participant UW as UserWechatRepo
+    participant US as UserService
+    participant JU as JwtUtil
+
+    Note over U,WX: 三端同微信开放平台账号 → union_id 一致 → 同一 studio
+    U->>MP: wx.login() → code
+    MP->>WC: POST /api/auth/wechat/login {appType:MP, code}
+    WC->>WS: login(MP, code)
+    WS->>WX: auth.code2Session(mpAppid, mpSecret, code)
+    WX-->>WS: {openid, session_key, unionid?}
+    WS->>UW: findByAppTypeOpenid(MP, openid) / findByUnionId(unionid)
+    alt 首次（无记录）
+        WS->>US: createUser+Studio（首登自动建 studio）
+        WS->>UW: insert(appType=MP, openid, unionid)
+    else 已存在
+        WS->>UW: 载 user+studio（unionid 一致直接命中）
+    end
+    WS->>JU: issueToken(user)
+    WS-->>WC: WechatLoginResponse{token,user,studio}
+    WC-->>MP: 200 → 小程序首页
+
+    Note over U,APP: App 用开放平台 OAuth：code→access_token→unionid，命中同一 unionid
+    U->>APP: 微信 OAuth → code
+    APP->>WC: POST /api/auth/wechat/login {appType:APP, code}
+    WC->>WS: login(APP, code)
+    WS->>WX: sns.oauth2.access_token + sns.userinfo
+    WX-->>WS: {openid, unionid}
+    WS->>UW: findByUnionId(unionid)  %% 命中小程序所建 user
+    WS->>UW: upsert(appType=APP, openid, unionid)  %% 补绑定
+    WS->>JU: issueToken(user)
+    WS-->>WC: WechatLoginResponse(同一 studio)
+    WC-->>APP: 200 → App 首页
+    Note over U,WX: Web 扫码同理（开放平台网站应用），unionid 一致即同一 studio
+
+%% ② AI 报价三端同调后端 DeepSeek
+sequenceDiagram
+    actor U as 摄影师
+    participant C as 任一终端(Web/RN/Taro)
+    participant A as aiApi.quote（@photogai/shared 共用）
+    participant AC as AiQuoteController
+    participant AQ as AiQuoteService
+    participant Q as QuotaService
+    participant L as LlmClient
+    participant DS as DeepSeek(/v1/chat/completions)
+
+    U->>C: 填 类型/时长/张数/地区/风格 → 生成报价
+    C->>A: aiApi.quote(req)  %% 三端同一端点函数
+    A->>AC: POST /api/ai/quote (JWT)
+    AC->>AQ: quote(req, studioId)
+    AQ->>Q: checkAiQuoteLimit(studioId)
+    alt 免费版当月>=5
+        Q-->>AQ: throw AiQuotaExceeded(403)
+        AQ-->>AC: 403
+        AC-->>C: 403 → openUpgrade（升级引导）
+    else 额度内
+        Q-->>AQ: ok
+        AQ->>L: complete(prompt(req))  %% OpenAI 兼容，默认 deepseek-chat
+        L->>DS: POST /v1/chat/completions (JSON mode)
+        DS-->>L: {priceLow,priceHigh,basis,script}
+        L-->>AQ: QuoteResponse
+        AQ->>Q: incrementAiQuoteUsed(studioId)
+        AQ-->>AC: QuoteResponse
+        AC-->>C: 200 → 展示区间+话术
+    end
+    Note over C,DS: Web/RN/Taro 共用同一 aiApi 与后端 DeepSeek 服务，逻辑零差异
+
+%% ③ 订单在 App/MP/Web 新建并推送通知
+sequenceDiagram
+    actor U as 摄影师
+    participant C as 任一终端(Web/RN/Taro)
+    participant OC as OrderController
+    participant OS as OrderService
+    participant Q as QuotaService
+    participant K as ScheduleConflictService
+    participant OR as OrderRepository
+    participant PS as PushService
+    participant DT as DeviceTokenRepo
+    participant EX as Expo Push API
+    participant WX as 微信订阅消息
+
+    U->>C: 新建订单 → 提交
+    C->>OC: POST /api/orders (OrderCreateRequest + JWT)
+    OC->>OS: create(req, currentUser)
+    OS->>Q: ensureWithinLimit(studioId)
+    OS->>K: checkConflict(studioId, shootDate, shootEndDate)
+    OS->>OR: save(order)
+    OR-->>OS: Order
+    OS->>PS: notifyNewOrder(studioId, order)  %% 自动扇出推送
+    PS->>DT: findActiveByStudio(studioId)
+    loop 每个设备令牌
+        alt platform=IOS/ANDROID（Expo token）
+            PS->>EX: POST exp.host/--/api/v2/push/send {to:expoToken, title, body, data}
+            EX-->>PS: 202 Accepted
+        else platform=MP
+            PS->>WX: subscribe/send(openid 来自 user_wechat MP, templateId, access_token)
+            WX-->>PS: {errcode:0}
+        end
+    end
+    OS-->>OC: OrderDTO
+    OC-->>C: 200 → 列表新增
+    Note over C,WX: 三端新建走同一 /api/orders；PushService 向 studio 内所有设备扇出（App=Expo，小程序=订阅消息）

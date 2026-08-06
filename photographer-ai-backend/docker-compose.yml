@@ -1,0 +1,28 @@
+# PostgreSQL 一键启动（供本地开发）
+# 仅起数据库，后端用本机 `mvn spring-boot:run` 跑，连 localhost:5432
+# 用法（需本机已装 Docker）：
+#   cd photographer-ai-backend
+#   docker compose up -d        # 起库
+#   docker compose down         # 停库（数据保留在卷 photogai-pgdata）
+#   docker compose down -v      # 停库并清空数据
+services:
+  db:
+    image: postgres:16
+    container_name: photogai-db
+    environment:
+      POSTGRES_DB: photogai
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - photogai-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d photogai"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  photogai-pgdata:

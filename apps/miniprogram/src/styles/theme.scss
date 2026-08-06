@@ -1,0 +1,52 @@
+// ─────────────────────────────────────────────────────────────
+// 主题变量（唯一真源在 @photogai/shared 的 THEME_COLORS / RADIUS，
+// 本文件仅做「scss 变量镜像」，色值必须逐一对齐，禁止新增第三主色）。
+//
+// 单位口径：designWidth = 750。样式里写的 px 会被 pxtransform 按 1:1 换算为 rpx。
+// shared 的 RADIUS/字号是「逻辑 px（375pt 口径）」，故此处一律 ×2 得到 750 口径值。
+// ─────────────────────────────────────────────────────────────
+
+// —— 颜色（对齐 shared THEME_COLORS）——
+$color-primary: #2d6cdf; // THEME_COLORS.primary  主色/主操作/激活
+$color-ink: #1a1a1a; // THEME_COLORS.ink       墨色
+$color-bg: #f7f8fa; // THEME_COLORS.background 页面背景
+$color-paper: #ffffff; // THEME_COLORS.paper     卡片/纸面
+$color-text-primary: #1a1a1a; // THEME_COLORS.textPrimary
+$color-text-secondary: #6b7280; // THEME_COLORS.textSecondary
+$color-divider: #f2f4f7; // THEME_COLORS.divider
+$color-success: #16a34a; // THEME_COLORS.success
+$color-warning: #f59e0b; // THEME_COLORS.warning
+$color-error: #dc2626; // THEME_COLORS.error
+
+// 主色浅底（由主色派生，非新增主色，仅用于标签/选中态底色）
+$color-primary-soft: rgba(45, 108, 223, 0.1);
+$color-error-soft: rgba(220, 38, 38, 0.1);
+$color-success-soft: rgba(22, 163, 74, 0.1);
+$color-warning-soft: rgba(245, 158, 11, 0.12);
+
+// —— 圆角（对齐 shared RADIUS，×2 为 750 口径）——
+$radius-base: 20px; // RADIUS.base = 10
+$radius-card: 24px; // RADIUS.card = 12
+$radius-pill: 999px;
+
+// —— 间距 ——
+$space-xxs: 4px;
+$space-xs: 8px;
+$space-sm: 16px;
+$space-md: 24px;
+$space-lg: 32px;
+$space-xl: 48px;
+
+// —— 字号（750 口径 = 逻辑 px × 2）——
+$font-xs: 20px; // 10
+$font-sm: 24px; // 12
+$font-base: 28px; // 14
+$font-md: 32px; // 16
+$font-lg: 36px; // 18
+$font-xl: 44px; // 22
+$font-xxl: 56px; // 28
+
+// —— 字重 ——
+$weight-regular: 400;
+$weight-medium: 500;
+$weight-bold: 600;

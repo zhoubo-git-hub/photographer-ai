@@ -1,0 +1,25 @@
+.page-container {
+  @include column;
+
+  min-height: 100vh;
+  background: $color-bg;
+
+  &__header {
+    flex: none;
+    background: $color-paper;
+    border-bottom: 1px solid $color-divider;
+  }
+
+  &__body {
+    flex: 1;
+
+    &--padded {
+      padding: $space-md;
+    }
+  }
+
+  &__footer {
+    flex: none;
+    padding: $space-md;
+  }
+}

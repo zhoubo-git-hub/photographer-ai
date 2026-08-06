@@ -1,0 +1,104 @@
+.quote-page {
+  @include column;
+
+  min-height: 100%;
+  padding: $space-md;
+
+  &__form {
+    @include column(flex-start, stretch);
+  }
+
+  &__label {
+    margin-top: $space-md;
+    margin-bottom: $space-xs;
+    font-size: $font-sm;
+    color: $color-text-secondary;
+  }
+
+  &__types {
+    @include row(flex-start, center);
+
+    flex-wrap: wrap;
+  }
+
+  &__type {
+    padding: $space-xxs $space-md;
+    margin-right: $space-xs;
+    margin-bottom: $space-xs;
+    border-radius: $radius-pill;
+    background: $color-bg;
+
+    &--active {
+      background: $color-primary-soft;
+
+      .quote-page__type-text {
+        color: $color-primary;
+        font-weight: $weight-medium;
+      }
+    }
+  }
+
+  &__type-text {
+    font-size: $font-sm;
+    color: $color-text-primary;
+  }
+
+  &__input {
+    height: 80px;
+    padding: 0 $space-md;
+    border-radius: $radius-base;
+    background: $color-paper;
+    border: 1px solid $color-divider;
+    font-size: $font-base;
+    color: $color-ink;
+  }
+
+  &__submit {
+    height: 88px;
+    line-height: 88px;
+    margin-top: $space-lg;
+    border-radius: $radius-pill;
+    background: $color-primary;
+    color: #fff;
+    font-size: $font-md;
+    border: none;
+
+    &::after {
+      border: none;
+    }
+  }
+
+  &__result {
+    @include card;
+    @include column(flex-start, stretch);
+
+    margin-top: $space-md;
+    padding: $space-md;
+    background: $color-primary-soft;
+    border-color: transparent;
+  }
+
+  &__price {
+    font-size: $font-xl;
+    font-weight: $weight-bold;
+    color: $color-primary;
+  }
+
+  &__basis {
+    margin-top: $space-xs;
+    font-size: $font-sm;
+    color: $color-text-primary;
+  }
+
+  &__script {
+    margin-top: $space-xs;
+    font-size: $font-sm;
+    color: $color-text-secondary;
+  }
+
+  &__quota {
+    margin-top: $space-sm;
+    font-size: $font-xs;
+    color: $color-text-secondary;
+  }
+}

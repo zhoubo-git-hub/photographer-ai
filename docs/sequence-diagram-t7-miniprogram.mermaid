@@ -1,0 +1,121 @@
+sequenceDiagram
+    autonumber
+    participant U as 用户
+    participant App as app.tsx
+    participant ST as lib/storage.ts
+    participant HT as lib/http.ts
+    participant AS as authStore(shared)
+    participant UI as uiStore(shared)
+    participant WX as lib/wechat.ts
+    participant API as shared api
+    participant HC as HttpClient(axios)
+    participant BE as 后端 Spring Boot
+
+    %% ① 启动初始化
+    Note over App,HC: ① 启动初始化（顺序不可颠倒：storage 必须先于 http）
+    App->>ST: setStorageAdapter(TaroStorageAdapter)
+    ST->>AS: onStorageAdapterChange 回调
+    AS->>ST: persist.rehydrate() 读 Taro storage
+    ST-->>AS: photogai-auth 快照
+    AS-->>App: token/user/studio 恢复完成
+    App->>HT: setupHttp()
+    HT->>HC: http.defaults.adapter = createTaroAdapter()
+    HT->>HC: configureHttpClient({baseURL: API_BASE, timeout, onUnauthorized, onPaymentRequired})
+    App->>UI: bindToast() 订阅 toast/upgrade 状态
+
+    %% ② 微信登录
+    Note over U,BE: ② 微信一键登录（W1）
+    U->>WX: 点击「微信一键登录」
+    WX->>WX: Taro.login() → code
+    WX->>API: authApi.wechatLogin({appType:'MP', code})
+    API->>HC: request POST /auth/wechat/login (isLoginRequest=true)
+    HC->>BE: HTTP via Taro.request
+    BE->>BE: code2Session 解析 openid/unionid → 命中或新建 studio
+    BE-->>HC: {code:0, data:{token,user,studio,isNewUser,needBind}}
+    HC-->>API: 解包返回 data
+    API-->>WX: WechatLoginResponse
+    WX->>AS: setAuth({token,user,studio})
+    AS->>ST: persist 写入 Taro storage
+    WX->>U: Taro.switchTab('/pages/orders/index')
+
+    %% ③ 订单列表
+    Note over U,BE: ③ 订单列表（鉴权自动注入）
+    U->>App: 进入订单页 / 下拉刷新
+    App->>API: useOrders(status, page, size)
+    API->>HC: request GET /orders?status&page&size
+    HC->>AS: options.getToken()
+    AS-->>HC: token
+    HC->>BE: GET /api/orders (Authorization: Bearer ...)
+    BE-->>HC: {code:0, data:PageData<Order>}
+    HC-->>App: PageData<Order>
+    App->>U: 渲染 OrderCard（STATUS_LABELS / formatAmount / formatDate）
+
+    %% ④ 订单详情
+    Note over U,BE: ④ 订单详情（只读）
+    U->>App: 点击订单卡片
+    App->>API: useOrder(id)
+    API->>HC: GET /orders/{id}
+    HC->>BE: GET /api/orders/{id}
+    BE-->>HC: {code:0, data:Order(含 history)}
+    HC-->>App: Order
+    App->>U: FieldRow 渲染 + 底部「重操作请在 Web 端完成」
+
+    %% ⑤ 档期
+    Note over U,BE: ⑤ 档期月历（冲突标记）
+    U->>App: 切换月份
+    App->>API: scheduleApi.month(year, month)
+    API->>HC: GET /schedule/month?year&month
+    HC->>BE: GET /api/schedule/month
+    BE-->>HC: {code:0, data:ScheduleItem[]}
+    HC-->>App: ScheduleItem[]
+    App->>U: conflict===true 的日期用 THEME_COLORS.error 高亮
+
+    %% ⑥ AI 报价
+    Note over U,BE: ⑥ AI 报价（含配额/权限分支）
+    U->>App: 填写 QuoteRequest 并提交
+    App->>API: useQuote().quote.mutate(req)
+    API->>HC: POST /ai/quote
+    HC->>BE: POST /api/ai/quote
+    alt 免费额度用尽 / 非专业版
+        BE-->>HC: 403
+        HC->>UI: openUpgrade(message)
+        HC-->>App: reject ApiError(403)
+        App->>U: Taro.showModal 引导去 Web 端升级
+    else 订阅到期
+        BE-->>HC: 402
+        HC->>UI: setExpiredBanner(true) + openUpgrade
+        HC->>HT: options.onPaymentRequired()
+        HT->>U: 提示续费
+    else 成功
+        BE-->>HC: {code:0, data:QuoteResponse}
+        HC-->>App: QuoteResponse
+        App->>UI: setPendingQuote(resp)
+        App->>U: formatPriceRange + basis + script(可复制) + remainingQuota
+    end
+
+    %% ⑦ 提醒 / 通知中心
+    Note over U,BE: ⑦ 提醒与通知中心（同一数据源 reminderApi）
+    U->>App: 进入提醒 / 通知中心
+    App->>API: reminderApi.list(status?, dueOnly?)
+    API->>HC: GET /reminders
+    HC->>BE: GET /api/reminders
+    BE-->>HC: {code:0, data:Reminder[]}
+    HC-->>App: Reminder[]
+    App->>U: ReminderCard（REMINDER_LABELS / formatDateTime）
+
+    %% ⑧ token 过期
+    Note over U,BE: ⑧ token 过期统一处理
+    App->>HC: 任意受保护请求
+    HC->>BE: GET /api/...
+    BE-->>HC: 401
+    HC->>AS: logout() 清空 token/user/studio
+    AS->>ST: 清除持久化
+    HC->>HT: options.onUnauthorized()
+    HT->>U: Taro.reLaunch('/pages/login/index')
+
+    %% ⑨ 退出登录
+    Note over U,ST: ⑨ 主动退出
+    U->>App: 「我的」页点击退出登录
+    App->>AS: logout()
+    AS->>ST: 清除 photogai-auth
+    App->>U: Taro.reLaunch('/pages/login/index')

@@ -1,0 +1,38 @@
+// 状态色仅由 THEME_COLORS 的 primary/success/warning/ink 派生，不引入第三主色。
+.status-tag {
+  @include pill($color-primary-soft, $color-primary);
+
+  flex: none;
+  white-space: nowrap;
+
+  &--small {
+    padding: 2px $space-xs;
+    font-size: $font-xs;
+  }
+
+  // 咨询中 / 定金：主色系（推进中）
+  &--consult,
+  &--deposit {
+    background: $color-primary-soft;
+    color: $color-primary;
+  }
+
+  // 拍摄 / 修图：警告色系（进行中，需盯）
+  &--shoot,
+  &--edit {
+    background: $color-warning-soft;
+    color: $color-warning;
+  }
+
+  // 交付：成功色
+  &--deliver {
+    background: $color-success-soft;
+    color: $color-success;
+  }
+
+  // 复购：墨色（已闭环）
+  &--repurchase {
+    background: $color-divider;
+    color: $color-ink;
+  }
+}

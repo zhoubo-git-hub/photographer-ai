@@ -1,0 +1,36 @@
+.order-detail {
+  min-height: 100%;
+
+  &__body {
+    padding: $space-md;
+  }
+
+  &__header {
+    @include row(space-between, center);
+
+    margin-bottom: $space-md;
+  }
+
+  &__title {
+    @include ellipsis;
+
+    flex: 1;
+    font-size: $font-lg;
+    font-weight: $weight-bold;
+    color: $color-ink;
+  }
+
+  &__banner {
+    @include card;
+
+    margin-bottom: $space-md;
+    padding: $space-sm $space-md;
+    background: $color-warning-soft;
+    border-color: transparent;
+  }
+
+  &__banner-text {
+    font-size: $font-sm;
+    color: $color-warning;
+  }
+}

@@ -1,0 +1,32 @@
+// 全局样式。主题变量/mixin 由 config sass.resource 全局注入，无需在此 @import。
+
+page {
+  background: $color-bg;
+  color: $color-text-primary;
+  font-size: $font-base;
+  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica,
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+view,
+text,
+button,
+input,
+scroll-view {
+  box-sizing: border-box;
+}
+
+// 去掉小程序 button 的默认边框与背景，统一由业务样式接管。
+button {
+  padding: 0;
+  margin: 0;
+  font-size: $font-base;
+  background: transparent;
+  line-height: normal;
+
+  &::after {
+    border: none;
+  }
+}

@@ -1,0 +1,148 @@
+classDiagram
+    %% ===== 多租户根 =====
+    class Studio {
+        +Long id
+        +String name
+        +String planType  %% FREE | PRO
+        +Long ownerUserId
+        +LocalDateTime createdAt
+        +LocalDateTime updatedAt
+    }
+
+    class User {
+        +Long id
+        +Long studioId
+        +String username
+        +String passwordHash
+        +String email
+        +String role  %% OWNER | MEMBER
+        +LocalDateTime createdAt
+        +LocalDateTime updatedAt
+    }
+
+    class Customer {
+        +Long id
+        +Long studioId
+        +String name
+        +String wechatId
+        +String phone
+        +String tags  %% 逗号分隔
+        +String note
+        +LocalDateTime createdAt
+        +LocalDateTime updatedAt
+        +LocalDateTime deletedAt  %% 软删
+    }
+
+    class Order {
+        +Long id
+        +Long studioId
+        +Long customerId
+        +String title
+        +String shootType
+        +OrderStatus status
+        +BigDecimal amount
+        +BigDecimal depositAmount
+        +String currency
+        +LocalDate shootDate
+        +LocalDate shootEndDate
+        +Integer durationHours
+        +Integer photoCount
+        +String region
+        +String style
+        +String quoteSuggestion
+        +Long createdBy
+        +LocalDateTime createdAt
+        +LocalDateTime updatedAt
+        +LocalDateTime deletedAt
+    }
+
+    class StatusHistory {
+        +Long id
+        +Long orderId
+        +OrderStatus fromStatus
+        +OrderStatus toStatus
+        +Long operatorId
+        +LocalDateTime createdAt
+    }
+
+    class Reminder {
+        +Long id
+        +Long orderId
+        +Long studioId
+        +ReminderType type
+        +LocalDateTime dueAt
+        +ReminderStatus status  %% PENDING|DONE|DISMISSED
+        +LocalDateTime createdAt
+    }
+
+    class Quota {
+        +Long id
+        +Long studioId
+        +String planType
+        +Integer orderCount
+        +Integer aiQuoteUsedMonth
+        +String quotaMonth  %% YYYY-MM
+        +LocalDateTime createdAt
+        +LocalDateTime updatedAt
+    }
+
+    %% ===== 枚举 =====
+    class OrderStatus {
+        <<enumeration>>
+        CONSULT
+        DEPOSIT
+        SHOOT
+        EDIT
+        DELIVER
+        REPURCHASE
+    }
+    class ReminderType {
+        <<enumeration>>
+        DEPOSIT_DUE
+        SHOOT_TOMORROW
+        EDIT_OVERDUE
+    }
+    class ReminderStatus {
+        <<enumeration>>
+        PENDING
+        DONE
+        DISMISSED
+    }
+
+    %% ===== 服务类（非持久） =====
+    class OrderStateMachine {
+        +boolean canTransition(from, to)
+        +List~OrderStatus~ next(OrderStatus)
+    }
+    class ScheduleConflictService {
+        +List~ConflictDTO~ checkConflict(studioId, shootDate, shootEndDate, excludeOrderId)
+    }
+    class QuotaService {
+        +void ensureWithinLimit(studioId)
+        +void checkAiQuoteLimit(studioId)
+        +void incrementAiQuoteUsed(studioId)
+    }
+    class AiQuoteService {
+        +QuoteResponse quote(QuoteRequest, studioId)
+    }
+    class LlmClient {
+        +QuoteResponse complete(prompt)
+    }
+
+    %% ===== 关系 =====
+    Studio "1" --> "*" User : 拥有
+    Studio "1" --> "*" Customer : 隔离
+    Studio "1" --> "*" Order : 隔离
+    Studio "1" --> "1" Quota : 唯一
+    Studio "1" --> "*" Reminder : 隔离
+    Customer "1" --> "*" Order : 客户
+    Order "1" --> "*" StatusHistory : 留痕
+    Order "1" --> "*" Reminder : 触发
+    Order "1" --> "1" OrderStatus : 当前状态
+
+    QuotaService ..> Quota : 读写
+    ScheduleConflictService ..> Order : 查询
+    OrderStateMachine ..> Order : 校验流转
+    AiQuoteService ..> QuotaService : 限次
+    AiQuoteService ..> LlmClient : 调用
+    LlmClient ..> Order : 回填 quoteSuggestion(可选)

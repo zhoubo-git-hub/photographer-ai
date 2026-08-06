@@ -1,0 +1,36 @@
+.reminders-page {
+  min-height: 100%;
+
+  &__filter {
+    @include row(flex-start, center);
+
+    padding: $space-sm $space-md;
+    background: $color-paper;
+    border-bottom: 1px solid $color-divider;
+  }
+
+  &__chip {
+    margin-right: $space-xs;
+    padding: $space-xxs $space-md;
+    border-radius: $radius-pill;
+    background: $color-bg;
+
+    &--active {
+      background: $color-primary-soft;
+
+      .reminders-page__chip-text {
+        color: $color-primary;
+        font-weight: $weight-medium;
+      }
+    }
+  }
+
+  &__chip-text {
+    font-size: $font-sm;
+    color: $color-text-secondary;
+  }
+
+  &__list {
+    padding: $space-md;
+  }
+}

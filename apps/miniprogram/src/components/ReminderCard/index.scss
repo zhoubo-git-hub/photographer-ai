@@ -1,0 +1,60 @@
+.reminder-card {
+  @include card;
+  @include row(space-between, center);
+
+  margin-bottom: $space-md;
+  padding: $space-md;
+
+  &--done {
+    opacity: 0.6;
+  }
+
+  &__main {
+    @include column(flex-start, flex-start);
+
+    flex: 1;
+    margin-right: $space-sm;
+  }
+
+  &__type {
+    font-size: $font-base;
+    font-weight: $weight-medium;
+    color: $color-ink;
+  }
+
+  &__sub {
+    @include ellipsis;
+
+    margin-top: $space-xxs;
+    font-size: $font-sm;
+    color: $color-text-primary;
+  }
+
+  &__due {
+    margin-top: 2px;
+    font-size: $font-xs;
+    color: $color-text-secondary;
+  }
+
+  &__action {
+    flex: none;
+    padding: $space-xxs $space-md;
+    border-radius: $radius-pill;
+    background: $color-primary-soft;
+
+    &:active {
+      opacity: 0.8;
+    }
+  }
+
+  &__action-text {
+    font-size: $font-sm;
+    color: $color-primary;
+  }
+
+  &__done-tag {
+    flex: none;
+    font-size: $font-sm;
+    color: $color-text-secondary;
+  }
+}

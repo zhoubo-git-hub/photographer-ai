@@ -1,0 +1,83 @@
+classDiagram
+    %% 既有（仅展示与阶段2 相关的关系）
+    class Studio {
+        +Long id
+        +String name
+        +String planType  %% FREE|PRO
+    }
+    class Customer {
+        +Long id
+        +String name
+        +String wechatId
+        +String phone
+        +String tags
+        +String note
+        %% 阶段2 新增画像字段
+        +LocalDate lastShootDate
+        +Integer repurchaseCycleDays
+        +LocalDate birthday
+        +LocalDate anniversary
+        +Boolean repurchaseEnabled
+        +String sourceChannel
+    }
+    class Order {
+        +Long id
+        +Long customerId
+        +String shootType
+        +BigDecimal amount
+        +BigDecimal depositAmount
+        +LocalDate shootDate
+    }
+    class Reminder {
+        +Long id
+        +Long orderId
+        +Long customerId   %% 阶段2 新增
+        +ReminderType type %% 扩 DELIVER_REVIEW/REPURCHASE
+        +LocalDateTime dueAt
+        +ReminderStatus status
+    }
+
+    %% 阶段2 新增
+    class ReminderRule {
+        +Long id
+        +Long studioId
+        +ReminderTriggerEvent event
+        +int offsetDays   %% 负=提前
+        +boolean enabled
+        +String channel   %% INAPP
+    }
+    class ContractTemplate {
+        +Long id
+        +Long studioId   %% NULL=系统内置
+        +String name
+        +String category
+        +String content  %% {{占位符}}
+        +boolean builtin
+        +Long createdBy
+    }
+    class ReminderTriggerEvent {
+        <<enum>>
+        DEPOSIT
+        SHOOT
+        DELIVER
+        REPURCHASE
+    }
+    class ReminderType {
+        <<enum>>
+        DEPOSIT_DUE
+        SHOOT_TOMORROW
+        EDIT_OVERDUE
+        DELIVER_REVIEW
+        REPURCHASE
+    }
+
+    Studio "1" --> "*" Customer : 隔离
+    Studio "1" --> "*" Order : 隔离
+    Studio "1" --> "*" ReminderRule : 隔离
+    Studio "1" --> "*" Reminder : 隔离
+    Studio "1" --> "*" ContractTemplate : 内置studioId=NULL
+    Customer "1" --> "*" Order
+    Order "1" --> "*" Reminder : orderId
+    Customer "1" --> "*" Reminder : customerId(复购)
+    ReminderRule "1" ..> "触发" Reminder : event→type
+    ContractTemplate "1" ..> "套用" Order : 字段替换
