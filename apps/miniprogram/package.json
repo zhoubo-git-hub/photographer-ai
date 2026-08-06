@@ -8,7 +8,8 @@
     "build:weapp": "taro build --type weapp",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
-    "test": "echo \"[@photogai/miniprogram] no unit tests yet (T7 首版)\" && exit 0"
+    "test": "node --test tests/smoke.test.cjs",
+    "verify:dist": "node qa-verify.cjs"
   },
   "dependencies": {
     "@babel/runtime": "^7.24.0",
