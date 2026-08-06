@@ -5,7 +5,7 @@
   "description": "摄影师 AI 接单跟单助手 — 微信小程序端（Taro 3.6 + React 18），查看/轻操作版。业务逻辑全部复用 @photogai/shared。",
   "scripts": {
     "dev:weapp": "taro build --type weapp --watch",
-    "build:weapp": "taro build --type weapp",
+    "build:weapp": "node scripts/build-weapp.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "test": "node --test tests/smoke.test.cjs",
@@ -26,8 +26,6 @@
     "axios": "^1.7.0",
     "dayjs": "^1.11.13",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "taro-ui": "^3.4.1",
     "zustand": "^4.5.0"
   },
   "devDependencies": {
@@ -40,7 +38,7 @@
     "postcss": "^8.4.38",
     "sass": "^1.77.0",
     "typescript": "^5.5.0",
-    "webpack": "^5.91.0"
+    "webpack": "5.78.0"
   },
   "browserslist": [
     "defaults and fully supports es6-module",

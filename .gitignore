@@ -5,6 +5,7 @@ node_modules/
 # Build output
 dist/
 dist_old_qa/
+dist_broken_r2/
 .temp/
 .taro/
 .cache/

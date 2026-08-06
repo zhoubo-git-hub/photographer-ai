@@ -1,6 +1,7 @@
 import { Text, View } from '@tarojs/components';
 import { useQuery } from '@tanstack/react-query';
 import { reminderApi } from '@photogai/shared/api';
+import { queryKeys } from '@photogai/shared/hooks';
 import { REMINDER_LABELS } from '@photogai/shared/types';
 import { formatDateTime } from '@photogai/shared/domain';
 import PageContainer from '@/components/PageContainer';
@@ -14,7 +15,9 @@ import './index.scss';
  */
 export default function NoticesPage() {
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['notices'],
+    // 与提醒事项页共用 queryKeys.reminders：在提醒页点「完成」后
+    // invalidateQueries(queryKeys.reminders) 会一并刷新通知中心，避免看到旧数据。
+    queryKey: queryKeys.reminders,
     queryFn: () => reminderApi.list(),
   });
 
