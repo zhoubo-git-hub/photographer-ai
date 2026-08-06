@@ -38,6 +38,19 @@ function resolveSharedSrc() {
 
 const SHARED_SRC_DIRS = resolveSharedSrc();
 
+/**
+ * 强制指向仓库根 node_modules 的唯一物理副本。
+ *
+ * 背景（QA 回归 qa-verify.cjs 发现的 R4 阻断级 Bug）：
+ * packages/shared 曾因异常 junction 把其 node_modules 指向 photographer-ai-web/node_modules，
+ * 导致 shared 源码与 miniprogram 端把 react / axios / @tanstack/react-query / zustand 解析成
+ * 不同物理副本（且 axios 出现 1.19.0 vs 1.18.1 版本分叉）。webpack 把它们各打进一份实例，
+ * 运行期 React dispatcher 与 QueryClient Context 失配 → 全端白屏。
+ * 此处把共享三方依赖全部 alias 到仓库根 node_modules，无论 node_modules 软链如何布局，
+ * webpack 都只打出一份实例。__dirname 为 apps/miniprogram/config，向上 3 级即仓库根。
+ */
+const R = (p) => path.resolve(__dirname, '../../../node_modules/', p);
+
 const config = {
   projectName: 'photogai-miniprogram',
   date: '2025-01-01',
@@ -70,6 +83,13 @@ const config = {
   },
   alias: {
     '@': path.resolve(__dirname, '..', 'src'),
+    // R4：强制共享三方依赖单例（见上方 R 说明）。避免重复打包导致运行期崩溃。
+    react: R('react'),
+    'react/jsx-runtime': R('react/jsx-runtime'),
+    '@tanstack/react-query': R('@tanstack/react-query'),
+    '@tanstack/query-core': R('@tanstack/query-core'),
+    zustand: R('zustand'),
+    axios: R('axios'),
   },
   sass: {
     // 全局注入主题变量与 mixin，页面/组件 scss 无需重复 @import。

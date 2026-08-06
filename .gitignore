@@ -15,8 +15,11 @@ npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*
 
-# Temp
-_tmp_*/
+# Build output (backend Maven target, etc.)
+target/
+
+# Temp (both 0-byte temp files and directories)
+_tmp_*
 .tmp/
 
 # Editor / OS

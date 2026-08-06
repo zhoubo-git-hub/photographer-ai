@@ -25,9 +25,11 @@ export function setupHttp(): void {
   configured = true;
 
   // ① 注入 Taro 适配器（小程序无 XMLHttpRequest）
-  // 注意：shared 的 http 实例经 pnpm 软链解析到的 axios 类型与 miniprogram 侧 axios
-  // 在 TS 下被视为两个不同「身份」（同构但不同物理副本）。运行期 webpack 会统一解析为
-  // 同一份 axios，故此处经 unknown 桥接赋值，避免名义类型不匹配阻断编译。
+  // 注：此前 shared 的 http 实例与 miniprogram 侧 axios 在 TS 下被判定为两个不同「身份」，
+  // 根因是 pnpm 下 packages/shared 的 node_modules 曾异常 junction 到 photographer-ai-web/node_modules，
+  // 导致 axios 出现两份物理副本（1.19.0 vs 1.18.1）。现已通过 config/index.js 的 alias +
+  // 移除异常 junction，从根上保证全仓只有一份 axios 实例；此处保留 unknown 桥接仅作防御，
+  // 防止个别环境类型身份仍不一致时阻断编译。
   http.defaults.adapter = taroAxiosAdapter as unknown as typeof http.defaults.adapter;
 
   // ② 注入平台差异项：baseURL 与 401/402 的导航动作
