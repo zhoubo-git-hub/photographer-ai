@@ -85,6 +85,14 @@ runCase({
   expectExit: 1,
 });
 
+// 竞态收口：产物先齐全、子进程 4s 后才失败（post-build 钩子挂了）。
+// 宽限期内非 0 退出必须判失败，不能因为产物齐全就提前 exit 0。
+runCase({
+  name: 'race-产物先齐子进程后失败',
+  taroBin: 'fake-taro-race.cjs',
+  expectExit: 1,
+});
+
 // 缺陷 C（b）：子进程崩溃且不产出，但运行前预置了陈旧 dist → 先清 dist，必须失败（不假通过）。
 runCase({
   name: 'C-陈旧dist不假通过',
@@ -102,4 +110,5 @@ runCase({
 });
 
 console.log(`\n结果：${pass} PASS / ${fail} FAIL`);
+writeFileSync(join(__dirname, 'last-result.txt'), `${pass} PASS / ${fail} FAIL\n`, 'utf8');
 process.exit(fail === 0 ? 0 : 1);

@@ -26,6 +26,7 @@ _tmp_*
 
 # Fault-injection test transient artifact (scripts/_faulttest)
 **/scripts/_faulttest/grandchild.pid
+**/scripts/_faulttest/last-result.txt
 
 # Editor / OS
 .DS_Store

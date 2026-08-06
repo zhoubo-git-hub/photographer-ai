@@ -8,6 +8,9 @@
  *    提到 30 分钟，可用 BUILD_TIMEOUT_MS 覆盖。
  *  - 缺陷 C（假通过）：只按"文件存在"判定会误把陈旧/失败的产物判成功。这里先 rm -rf
  *    dist 再启动，且子进程非 0 退出时无论产物是否齐全都必须失败（子进程退出码优先）。
+ *  - 竞态收口（Known Issue）：产物先齐全、子进程随后才失败（如 post-build 钩子挂了）
+ *    的窄窗口。产物齐全后引入 GRACE_MS 宽限，期间子进程非 0 退出即判失败，否则判成功
+ *    （覆盖"taro 编译完不退出"）；可用 BUILD_GRACE_MS 覆盖。
  *
  * 策略：
  *  - 启动前清空 dist（从根上杜绝陈旧产物误判）；
@@ -108,7 +111,17 @@ function finish(code) {
 
 // 缺陷 B 修复：默认 30 分钟（墙钟可达 ~20 分钟），可用 BUILD_TIMEOUT_MS 覆盖。
 const TIMEOUT_MS = Number(process.env.BUILD_TIMEOUT_MS || 1800000);
+// 竞态宽限（Known Issue 收口）：产物先齐全、子进程随后才失败的窄窗口。
+// 产物齐全后给子进程一个窗口确认最终退出码；窗口内非 0 退出判失败，否则判成功
+// （覆盖"taro 编译完不退出"）。可用 BUILD_GRACE_MS 覆盖。
+const GRACE_MS = Number(process.env.BUILD_GRACE_MS || 4000);
 const start = Date.now();
+let graceDeadline = null;
+
+/** 产物首次齐全时记录宽限截止时间（只记一次）。 */
+function markArtifactsReady() {
+  if (graceDeadline === null) graceDeadline = Date.now() + GRACE_MS;
+}
 
 const poll = setInterval(() => {
   if (resolved) return;
@@ -118,11 +131,21 @@ const poll = setInterval(() => {
     finish(childCode ?? 1);
     return;
   }
-  // 产物齐全：成功（涵盖"编译完但不退出"——kill 掉残留 taro 后退出）。
   if (artifactsReady()) {
-    clearInterval(poll);
-    finish(0);
-    return;
+    markArtifactsReady();
+    // 子进程已确认成功退出且产物齐全 → 直接成功（保持快速路径）。
+    if (childExited && childCode === 0) {
+      clearInterval(poll);
+      finish(0);
+      return;
+    }
+    // 产物齐全但子进程尚未退出："编译完不退出"或"post-build 钩子可能失败"。
+    // 宽限期内非 0 退出会在 on('exit') 被判失败；宽限到则判成功。
+    if (Date.now() >= graceDeadline) {
+      clearInterval(poll);
+      finish(0);
+      return;
+    }
   }
   if (Date.now() - start > TIMEOUT_MS) {
     clearInterval(poll);
@@ -134,14 +157,15 @@ child.on('exit', (code) => {
   if (resolved) return;
   childExited = true;
   childCode = typeof code === 'number' ? code : 1;
-  // 构建失败：立即失败（即便产物齐全也不算成功）。
+  // 构建失败：立即失败（即便产物齐全也不算成功）——竞态窗口的关键防线。
   if (childCode !== 0) {
     clearInterval(poll);
     finish(childCode);
     return;
   }
-  // 构建成功退出：产物已就绪则成功；否则交回 poll 下一轮确认（极少数落盘竞态）。
+  // 构建成功退出：产物已就绪则成功；否则交回 poll（半截产物最终超时判失败）。
   if (artifactsReady()) {
+    markArtifactsReady();
     clearInterval(poll);
     finish(0);
   }
