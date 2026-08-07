@@ -24,6 +24,10 @@ target/
 _tmp_*
 .tmp/
 
+# Misc junk (old AI result dumps, large temp outputs)
+round2-result.txt
+*.result.txt
+
 # Fault-injection test transient artifact (scripts/_faulttest)
 **/scripts/_faulttest/grandchild.pid
 **/scripts/_faulttest/last-result.txt
