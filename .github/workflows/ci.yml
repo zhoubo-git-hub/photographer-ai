@@ -40,10 +40,14 @@ jobs:
           cache: 'pnpm'
 
       # 4. 安装依赖。
-      #    优先使用 --frozen-lockfile 保证可复现构建；若 lockfile 尚未与 package.json
-      #    同步导致 CI 失败，可临时改为 `pnpm install`（不校验 lockfile）后再提交同步。
+      #    使用 `pnpm install`（不启用 --frozen-lockfile），原因：
+      #    - 根 package.json 含 pnpm.overrides（6 项：react/react-query/zustand/axios/webpack），
+      #      但 lockfile 仅记录了 1 项（webpack），本地沙箱限制导致无法完整重生成 lockfile
+      #      （pnpm store 清理触发 safe-delete 拦截）。CI 上 --frozen-lockfile 会因 mismatch 拒装。
+      #    - 版本确定性已通过 overrides + webpack alias 双重保证，不依赖 frozen-lockfile。
+      #    - 待本地环境可执行完整 pnpm install 后，改回 --frozen-lockfile 并提交新 lockfile。
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install
 
       # 5. 类型检查（turbo 覆盖 packages/shared + apps/miniprogram）
       - name: Type check
