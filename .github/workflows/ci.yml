@@ -1,0 +1,62 @@
+# GitHub Actions CI for photographer-ai monorepo (pnpm@9.7.0 + turbo).
+#
+# 覆盖范围说明：
+#   - 本仓是 pnpm workspace（pnpm-workspace.yaml 声明 workspace = packages/* + apps/*），
+#     通过根 `turbo run <task>` 覆盖 packages/shared 与 apps/miniprogram。
+#   - photographer-ai-backend/ 是 Maven 兄弟目录，故意不纳入 workspace，本 CI 不构建它。
+#   - photographer-ai-web/ 是顶层独立目录（不在 apps/* 下，需单独 pnpm install），
+#     且其存在预存的 typecheck 失败（TS2688 minimatch），门禁暂不纳入，否则必红。
+#     TODO: 待 web 端 typecheck 修复后，再将其纳入本 CI（届时需在 setup 步骤对该目录
+#           单独执行 pnpm install，并补充对应 typecheck/test 步骤）。
+#   - 本流水线不引入任何需要 secrets 的步骤。
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 拉取代码
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. 安装指定版本的 pnpm
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '9.7.0'
+
+      # 3. 安装 Node 20.x 并启用 pnpm 缓存
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      # 4. 安装依赖。
+      #    优先使用 --frozen-lockfile 保证可复现构建；若 lockfile 尚未与 package.json
+      #    同步导致 CI 失败，可临时改为 `pnpm install`（不校验 lockfile）后再提交同步。
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # 5. 类型检查（turbo 覆盖 packages/shared + apps/miniprogram）
+      - name: Type check
+        run: pnpm typecheck
+
+      # 6. 单元测试（turbo 覆盖 packages/shared + apps/miniprogram）
+      - name: Test
+        run: pnpm test
+
+      # 7. 构建小程序产物（apps/miniprogram: build:weapp -> scripts/build-weapp.mjs -> dist/）
+      - name: Build miniprogram (weapp)
+        run: cd apps/miniprogram && pnpm build:weapp
+
+      # 8. 产物门禁反查（qa-verify.cjs：产物完整性 / 单例性反查）
+      - name: Verify miniprogram dist
+        run: cd apps/miniprogram && node qa-verify.cjs
