@@ -32,11 +32,11 @@ jobs:
         with:
           version: '9.7.0'
 
-      # 3. 安装 Node 20.x 并启用 pnpm 缓存
+      # 3. 安装 Node 22.x 并启用 pnpm 缓存
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'pnpm'
 
       # 4. 安装依赖。
