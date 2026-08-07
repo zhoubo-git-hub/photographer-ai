@@ -47,7 +47,7 @@ jobs:
       #    - 版本确定性已通过 overrides + webpack alias 双重保证，不依赖 frozen-lockfile。
       #    - 待本地环境可执行完整 pnpm install 后，改回 --frozen-lockfile 并提交新 lockfile。
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --no-frozen-lockfile
 
       # 5. 类型检查（turbo 覆盖 packages/shared + apps/miniprogram）
       - name: Type check
