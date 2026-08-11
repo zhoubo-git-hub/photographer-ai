@@ -66,8 +66,12 @@ jobs:
       - name: Verify miniprogram dist
         run: cd apps/miniprogram && node qa-verify.cjs
 
-  # 独立 web job：photographer-ai-web 是顶层目录，需单独 pnpm install。
-  # 刻意跳过 tsc typecheck（TS2688 minimatch 预存失败），仅跑 vite build + vitest，避免 CI 必红。
+  # 独立 web job：photographer-ai-web 是顶层独立目录（不在 workspace 内），
+  # 但其 package.json 引用 "@photogai/shared": "file:../packages/shared"，
+  # 故必须先在根目录装依赖（让 shared 就位、file: 引用可解析），
+  # 再 cd 进 web 跑 vite build + vitest。
+  # 刻意跳过 tsc typecheck（TS2688 minimatch 预存失败），避免 CI 必红。
+  # TODO: 待 TS2688 修复后补回 typecheck 步骤。
   web:
     runs-on: ubuntu-latest
     steps:
@@ -85,8 +89,8 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
 
-      - name: Install web dependencies
-        run: cd photographer-ai-web && pnpm install --no-frozen-lockfile
+      - name: Install all dependencies (root, so file:../packages/shared resolves)
+        run: pnpm install --no-frozen-lockfile
 
       - name: Build web (vite, skip tsc typecheck)
         run: cd photographer-ai-web && pnpm exec vite build
