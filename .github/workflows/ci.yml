@@ -66,13 +66,12 @@ jobs:
       - name: Verify miniprogram dist
         run: cd apps/miniprogram && node qa-verify.cjs
 
-  # 独立 web job：photographer-ai-web 是顶层独立目录（不在 pnpm workspace 内），
-  # 但其 package.json 引用 "@photogai/shared": "file:../packages/shared"。
-  # 直接在 web 目录 `pnpm install` 即可把 shared 链到 web 的 node_modules，
-  # 同时装上 web 自己的 vite/vitest 等 devDeps；无需在根目录装整仓。
-  # 构建用 `./node_modules/.bin/vite build` 而非 `pnpm exec vite`，
-  # 避免 pnpm exec 走 workspace 递归解析而报 "Command vite not found"
-  # （web 不在 workspace、根 node_modules 根本没有 vite）。
+  # 独立 web job：photographer-ai-web 是顶层独立目录，但 .npmrc 设了
+  # node-linker=hoisted（扁平布局），pnpm 在 web 目录 install 时会向上找到
+  # 根 pnpm-workspace.yaml 把 web 一并纳入 workspace 安装，所有依赖（含 web 的
+  # vite/vitest）被扁平提升到仓库根 node_modules，二进制都在根 .bin。
+  # 因此 web 本地的 node_modules/.bin 是空的，必须用根 .bin 的二进制；同时
+  # 保持 `cd` 进 web，让 vite 以 web 为项目根解析配置/入口。
   # 刻意跳过 tsc typecheck（TS2688 minimatch 预存失败），避免 CI 必红。
   # TODO: 待 TS2688 修复后补回 typecheck 步骤。
   web:
@@ -92,11 +91,11 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
 
-      - name: Install web dependencies (links file:../packages/shared)
+      - name: Install web dependencies (hoisted to root node_modules)
         run: cd photographer-ai-web && pnpm install --no-frozen-lockfile
 
       - name: Build web (vite, skip tsc typecheck)
-        run: cd photographer-ai-web && ./node_modules/.bin/vite build
+        run: cd photographer-ai-web && ../node_modules/.bin/vite build
 
       - name: Test web (vitest)
-        run: cd photographer-ai-web && pnpm test
+        run: cd photographer-ai-web && ../node_modules/.bin/vitest run
