@@ -7,11 +7,12 @@
 #   - photographer-ai-backend/ 是 Maven 兄弟目录，故意不纳入 workspace，本 CI 不构建它。
 #   - photographer-ai-web/ 是顶层目录，现已正式纳入 workspace（见 pnpm-workspace.yaml），
 #     由独立的 web job 用 `pnpm --filter photographer-ai-web exec vite build` 构建。
-#     其 build 脚本为 `tsc --noEmit && vite build`，存在预存的 typecheck 失败
-#     （TS2688 minimatch），故 web job 特意只跑 `vite build`（esbuild 不做类型检查）
-#     + `vitest run`，跳过 tsc typecheck，避免 CI 必红。同时 build job 的 typecheck/test
-#     也用 `--filter='!photographer-ai-web'` 排除 web，避免 TS2688 误伤主构建。
-#     TODO: 待 web 端 TS2688 修复后，在 web job 中补回 typecheck 步骤。
+#     其 build 脚本为 `tsc --noEmit && vite build`，CI 的 web job 现已完整跑
+#     `tsc --noEmit`（typecheck）+ `vite build` + `vitest run`。
+#     TS2688（@types/minimatch 空 stub 被 tsc 默认自动纳入）已在 web 的
+#     tsconfig.json 加 `"types": []` 修复，故 web 的 typecheck 已纳入 CI 卡点。
+#     为保持 job 职责清晰、web 独立并行，build job 的 typecheck/test 仍用
+#     `--filter='!photographer-ai-web'` 仅覆盖 packages/shared + apps/miniprogram。
 #   - 本流水线不引入任何需要 secrets 的步骤。
 
 name: CI
@@ -71,10 +72,10 @@ jobs:
         run: cd apps/miniprogram && node qa-verify.cjs
 
   # 独立 web job：photographer-ai-web 现已是正式 workspace 成员（见 pnpm-workspace.yaml），
-  # 故在根目录 pnpm install 即可把它的依赖（含 vite/vitest）随整仓一起装好，
+  # 故在根目录 pnpm install 即可把它的依赖（含 vite/vitest/tsc）随整仓一起装好，
   # 再用 pnpm 标准的 `--filter` 方式在 web 包上下文里执行二进制，解析最可靠。
-  # 刻意跳过 tsc typecheck（TS2688 minimatch 预存失败），避免 CI 必红。
-  # TODO: 待 TS2688 修复后补回 typecheck 步骤。
+  # TS2688 已通过 web tsconfig 的 `"types": []` 修复，故此处完整卡
+  # tsc --noEmit（typecheck）+ vite build + vitest run。
   web:
     runs-on: ubuntu-latest
     steps:
@@ -95,7 +96,10 @@ jobs:
       - name: Install dependencies (root, installs all workspace members incl. web)
         run: pnpm install --no-frozen-lockfile
 
-      - name: Build web (vite, skip tsc typecheck)
+      - name: Type check web (tsc --noEmit)
+        run: pnpm --filter photographer-ai-web exec tsc --noEmit
+
+      - name: Build web (vite)
         run: pnpm --filter photographer-ai-web exec vite build
 
       - name: Test web (vitest)
