@@ -49,7 +49,7 @@ export interface HttpClientOptions {
 }
 
 const options: HttpClientOptions = {
-  baseURL: 'http://localhost:8080/api',
+  baseURL: 'http://localhost:8083/api',
   timeout: 15000,
   getToken: () => useAuthStore.getState().token,
   onUnauthorized: () => {},

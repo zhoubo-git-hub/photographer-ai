@@ -696,7 +696,7 @@ dependencies 新增: "@photogai/shared": "workspace:*"
 | 约定项 | 内容 |
 |---|---|
 | **统一响应格式** | `{ "code": 0, "data": <T>, "message": "ok" }`；沿用阶段1。`code=0` 成功；分页 `data` 为 `{content,totalElements,totalPages,number,size}`。 |
-| **API Base URL** | Web：`VITE_API_BASE`（默认 `http://localhost:8080/api`）；RN：`EXPO_PUBLIC_API_BASE`；小程序：`defineConstants.API_BASE`（dev/prod 分离）。路径前缀统一 `/api`。 |
+| **API Base URL** | Web：`VITE_API_BASE`（默认 `http://localhost:8083/api`）；RN：`EXPO_PUBLIC_API_BASE`；小程序：`defineConstants.API_BASE`（dev/prod 分离）。路径前缀统一 `/api`。 |
 | **鉴权 Header** | `Authorization: Bearer <jwt>`。shared `HttpClient` 请求拦截注入；收到 `401` 清 token + 跳登录（各端路由不同）。 |
 | **错误码** | 沿用阶段1（`0/400/401/403/404/409/500`）+ 阶段3（`402` 等）+ **本版新增**：`WECHAT_LOGIN_FAILED(401)`、`INVALID_WX_CODE(400)`、`PUSH_FAILED(500)`、`STORAGE_FAILED(500)`。前端 `client.ts` 拦截：`401`→清 token 跳登录；`402`→跳订阅续费；`403`→`openUpgrade`（message 含"团队"注入团队版引导）。 |
 | **Token 存储（三端差异）** | shared `authStore` 经 `StorageAdapter` 接口：Web=`localStorage`、RN=`MMKV/AsyncStorage`、MP=`Taro.getStorageSync/setStorageSync`。统一键名 `photogai_token`。 |

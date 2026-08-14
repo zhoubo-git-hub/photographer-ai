@@ -29,7 +29,7 @@ export interface Result<T> {
 }
 
 const client = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE ?? 'http://localhost:8080/api',
+  baseURL: import.meta.env.VITE_API_BASE ?? 'http://localhost:8083/api',
   timeout: 15000,
 });
 
@@ -90,7 +90,7 @@ client.interceptors.response.use(
         return Promise.reject(new ApiError(0, '请求超时，请稍后重试'));
       }
       const apiBase =
-        import.meta.env.VITE_API_BASE ?? 'http://localhost:8080/api';
+        import.meta.env.VITE_API_BASE ?? 'http://localhost:8083/api';
       return Promise.reject(
         new ApiError(0, '无法连接服务器，请确认后端服务已启动（' + apiBase + '）'),
       );

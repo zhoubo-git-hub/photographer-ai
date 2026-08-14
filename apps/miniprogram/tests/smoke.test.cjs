@@ -173,12 +173,12 @@ test('buildRequestUrl：baseURL 与 path 之间不产生重复斜杠', () => {
   const { buildRequestUrl } = loadAdapter();
 
   assert.equal(
-    buildRequestUrl('http://localhost:8080/api', '/orders', undefined),
-    'http://localhost:8080/api/orders',
+    buildRequestUrl('http://localhost:8083/api', '/orders', undefined),
+    'http://localhost:8083/api/orders',
   );
   assert.equal(
-    buildRequestUrl('http://localhost:8080/api/', '/orders', undefined),
-    'http://localhost:8080/api/orders',
+    buildRequestUrl('http://localhost:8083/api/', '/orders', undefined),
+    'http://localhost:8083/api/orders',
   );
 });
 
@@ -186,7 +186,7 @@ test('buildRequestUrl：绝对地址不再拼 baseURL', () => {
   const { buildRequestUrl } = loadAdapter();
 
   assert.equal(
-    buildRequestUrl('http://localhost:8080/api', 'https://cdn.example.com/a.png', undefined),
+    buildRequestUrl('http://localhost:8083/api', 'https://cdn.example.com/a.png', undefined),
     'https://cdn.example.com/a.png',
   );
 });
