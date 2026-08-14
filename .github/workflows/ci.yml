@@ -4,7 +4,9 @@
 #   - 本仓是 pnpm workspace（pnpm-workspace.yaml 声明 workspace =
 #     packages/* + apps/* + photographer-ai-web）。
 #   - 通过根 `turbo run <task>` 覆盖 packages/shared 与 apps/miniprogram。
-#   - photographer-ai-backend/ 是 Maven 兄弟目录，故意不纳入 workspace，本 CI 不构建它。
+#   - photographer-ai-backend/ 是 Maven 兄弟目录，不在 pnpm workspace 内，
+#     但由独立的 `backend` job 用 setup-java@v7(JDK17) + Maven 覆盖编译与单测；
+#     单测含 @DataJpaTest（需真连 PG），故该 job 用 services 起 postgres:16 容器。
 #   - photographer-ai-web/ 是顶层目录，现已正式纳入 workspace（见 pnpm-workspace.yaml），
 #     由独立的 web job 用 `pnpm --filter photographer-ai-web exec vite build` 构建。
 #     其 build 脚本为 `tsc --noEmit && vite build`，CI 的 web job 现已完整跑
@@ -104,3 +106,39 @@ jobs:
 
       - name: Test web (vitest)
         run: pnpm --filter photographer-ai-web exec vitest run
+
+  # 独立 backend job：Maven 兄弟目录 photographer-ai-backend（不在 pnpm workspace）。
+  # setup-java@v7 提供 JDK17（与 pom 一致；本地 Windows 的 JDK8 系统变量不影响 CI）。
+  # 单测含 @DataJpaTest（如 ScheduleConflictServiceTest）需真连 PostgreSQL，
+  # 故用 GitHub Actions services 起 postgres:16 容器，库名/账密对齐 application.yml
+  # （jdbc:postgresql://localhost:5432/photogai，user/pass=postgres/postgres，flyway 自动建表）。
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: photogai
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v7
+        with:
+          java-version: '17'
+          distribution: 'corretto'
+          cache: 'maven'
+
+      - name: Build and test (Maven)
+        working-directory: photographer-ai-backend
+        run: mvn -B test

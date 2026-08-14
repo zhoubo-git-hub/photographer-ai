@@ -8,8 +8,10 @@ import static org.mockito.Mockito.when;
 
 import com.photogai.common.ErrorCode;
 import com.photogai.exception.BizException;
+import com.photogai.modules.billing.SubscriptionService;
 import com.photogai.modules.order.OrderRepository;
 import com.photogai.modules.quota.entity.Quota;
+import com.photogai.modules.studio.StudioRepository;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
@@ -36,6 +38,12 @@ class QuotaServiceTest {
     @Mock
     private OrderRepository orderRepository;
 
+    @Mock
+    private StudioRepository studioRepository;
+
+    @Mock
+    private SubscriptionService subscriptionService;
+
     @InjectMocks
     private QuotaService service;
 
@@ -55,6 +63,7 @@ class QuotaServiceTest {
         q.setOrderCount(10);
         when(quotaRepository.findByStudioId(1L)).thenReturn(Optional.of(q));
         when(orderRepository.countByStudioIdAndDeletedAtIsNull(1L)).thenReturn(10L);
+        when(subscriptionService.isPro(1L)).thenReturn(false);
 
         BizException ex = assertThrows(BizException.class, () -> service.ensureWithinLimit(1L));
         assertEquals(ErrorCode.FORBIDDEN.getCode(), ex.getCode());
@@ -66,6 +75,7 @@ class QuotaServiceTest {
         q.setOrderCount(9);
         when(quotaRepository.findByStudioId(1L)).thenReturn(Optional.of(q));
         when(orderRepository.countByStudioIdAndDeletedAtIsNull(1L)).thenReturn(9L);
+        when(subscriptionService.isPro(1L)).thenReturn(false);
 
         assertDoesNotThrow(() -> service.ensureWithinLimit(1L));
     }
@@ -74,6 +84,7 @@ class QuotaServiceTest {
     void freeAiQuoteLimitBlocksSixth() {
         Quota q = freeQuota(5);
         when(quotaRepository.findByStudioId(1L)).thenReturn(Optional.of(q));
+        when(subscriptionService.isPro(1L)).thenReturn(false);
 
         BizException ex = assertThrows(BizException.class, () -> service.checkAiQuoteLimit(1L));
         assertEquals(ErrorCode.FORBIDDEN.getCode(), ex.getCode());
@@ -83,6 +94,7 @@ class QuotaServiceTest {
     void freeAiQuoteLimitAllowsFifth() {
         Quota q = freeQuota(4);
         when(quotaRepository.findByStudioId(1L)).thenReturn(Optional.of(q));
+        when(subscriptionService.isPro(1L)).thenReturn(false);
         assertDoesNotThrow(() -> service.checkAiQuoteLimit(1L));
     }
 
@@ -93,6 +105,7 @@ class QuotaServiceTest {
         q.setOrderCount(999);
         when(quotaRepository.findByStudioId(1L)).thenReturn(Optional.of(q));
         when(orderRepository.countByStudioIdAndDeletedAtIsNull(1L)).thenReturn(999L);
+        when(subscriptionService.isPro(1L)).thenReturn(true);
 
         assertDoesNotThrow(() -> service.ensureWithinLimit(1L));
         assertDoesNotThrow(() -> service.checkAiQuoteLimit(1L));
