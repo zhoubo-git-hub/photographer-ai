@@ -108,7 +108,9 @@ jobs:
         run: pnpm --filter photographer-ai-web exec vitest run
 
   # 独立 backend job：Maven 兄弟目录 photographer-ai-backend（不在 pnpm workspace）。
-  # setup-java@v7 提供 JDK17（与 pom 一致；本地 Windows 的 JDK8 系统变量不影响 CI）。
+  # actions/setup-java@v5 提供 JDK17（版本线独立，最新仅 v5，与 pom 一致；
+  # 本地 Windows 的 JDK8 系统变量不影响 CI）。mvn test 现已挂 JaCoCo（见 pom.xml），
+  # 自动产出 target/site/jacoco 覆盖率报告并作为产物上传。
   # 单测含 @DataJpaTest（如 ScheduleConflictServiceTest）需真连 PostgreSQL，
   # 故用 GitHub Actions services 起 postgres:16 容器，库名/账密对齐 application.yml
   # （jdbc:postgresql://localhost:5432/photogai，user/pass=postgres/postgres，flyway 自动建表）。
@@ -142,3 +144,14 @@ jobs:
       - name: Build and test (Maven)
         working-directory: photographer-ai-backend
         run: mvn -B test
+
+      # JaCoCo 覆盖率报告（HTML/CSV/XML）由 mvn test 的 jacoco report 阶段产出。
+      # 上传为构件，便于在 CI 页面直接下载查看；不设置阈值卡点（当前基线约 14% 指令覆盖，
+      # 后续补 controller/集成测试提升，避免因阈值失败阻断流水线）。
+      - name: Upload JaCoCo coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-jacoco-report
+          path: photographer-ai-backend/target/site/jacoco
+          if-no-files-found: ignore
