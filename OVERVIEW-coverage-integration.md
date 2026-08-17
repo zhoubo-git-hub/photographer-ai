@@ -74,3 +74,10 @@
 - `.github/workflows/ci.yml`（backend job 上传覆盖率产物）
 - `photographer-ai-web/.env`（`VITE_API_BASE` 已统一为 8083）
 - 覆盖率报告：`photographer-ai-backend/target/site/jacoco/`
+
+## 六、CI 验证（2026-08-17，第二条建议）
+- 最新 push（`57bcf9b`）触发 GitHub Actions run `32003997482`，整体 **completed / success**。
+- backend job 全部步骤通过：`Set up JDK 17` → `Build and test (Maven)`（**227 测试通过**）→ `Upload JaCoCo coverage report`（产物 `backend-jacoco-report` 上传成功）。
+- 下载 CI 上传的 `jacoco.csv` 核算，覆盖率与本地独立复核**完全一致**：
+  - 指令 **46.4%** / 分支 **13.3%** / 行 **78.1%** / 方法 **65.4%**（本地：46.6% / 13.3% / 78.2% / 65.4%）。
+- 结论：测试在 CI 环境与本地一致可重现，无环境差异导致的红。
