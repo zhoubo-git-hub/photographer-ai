@@ -18,9 +18,16 @@
 | 行 Line | 22.3% |
 | 方法 Method | 14.4% |
 
-**结论**：现有测试以 `@DataJpaTest`（仓库/实体）为主，controller 与多数 service 未单测，故整体偏低。
-- 高覆盖：`OrderStateMachine`/`ScheduleConflictService` 100%、`Order` 97%、`AiQuoteService` 93.6%、`ContractService` 89.3%、`Quota` 81.6%。
-- 0% 类：`AuthService`/`AuthController`/`Billing*`/`ContractController`/`AiQuoteController`/`AiCommController` 等。
+**补测后结果（123 测，2026-08-17 补 15 个 controller 单测 + 3 个 service 单测）**
+
+| 维度 | 覆盖率 | 提升 |
+|------|--------|------|
+| 指令 Instructions | **30.6%** | +16.8pp |
+| 分支 Branch | 5.5% | +0.8pp |
+| 行 Line | **46.1%** | +23.8pp |
+| 方法 Method | **52.2%** | +37.8pp |
+
+**结论**：已补齐 15 个 controller 的 `MockMvc` 单测（standalone + mock service + `GlobalExceptionHandler` 异常校验）与 `AuthService`/`CustomerService`/`ScheduleService` 单测。分支覆盖仍偏低（controller 主路径少分支），如需进一步抬升可对 service 内部 if/else 分支补边界用例。
 
 > 报告明细见 `photographer-ai-backend/target/site/jacoco/index.html`（已随本消息附上）。
 
@@ -56,7 +63,7 @@
 
 ## 四、遗留决策点（未自动改，待拍板）
 1. **端口已统一为 8083**：8080 被其它服务占用、8081 是沙箱随机端口规避值，最终约定 backend 与三端 API 基址统一用 **8083**（`application.yml`、`web/.env`、小程序 `config/dev.js`、shared 回退默认均已改，架构文档同步更新）。
-2. **覆盖率偏低（13.8%）**：建议补 controller 层 + 集成测试（如 `MockMvc`/`@SpringBootTest`）把基线抬到可用水位；要我接着补哪几个模块的测试可直说。
+2. **覆盖率（补测后 30.6% 指令 / 46.1% 行 / 52.2% 方法）**：已补 15 个 controller + 3 个 service 单测；分支覆盖仍低（5.5%），可对 service 分支补边界用例继续抬升。
 
 ## 五、交付文件
 - `photographer-ai-backend/pom.xml`（JaCoCo）
