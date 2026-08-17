@@ -1,10 +1,10 @@
 package com.photogai.modules.repurchase;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -13,12 +13,18 @@ import com.photogai.modules.customer.entity.Customer;
 import com.photogai.modules.order.OrderRepository;
 import com.photogai.modules.order.ReminderRepository;
 import com.photogai.modules.order.ReminderService;
+import com.photogai.modules.order.entity.Order;
+import com.photogai.modules.order.entity.Reminder;
 import com.photogai.modules.order.enums.ReminderStatus;
 import com.photogai.modules.order.enums.ReminderType;
 import com.photogai.modules.quota.QuotaService;
+import com.photogai.modules.repurchase.dto.RepurchaseTaskDTO;
+import com.photogai.modules.studio.entity.Studio;
 import com.photogai.modules.studio.StudioRepository;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -33,8 +39,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  * 2. 已存在 PENDING 提醒 → 幂等跳过（不再生成）；
  * 3. 无候选 → 生成 0 条。
  *
- * <p>注：findRepurchaseCandidates 的 JPQL 过滤语义（lastShootDate+cycle≤today 等）由前端转录用例
- * repurchase.test.ts 覆盖，并建议在 CI 用 Testcontainers/PostgreSQL 做集成测试。
+ * <p>本轮扩展：listTasks 的 PRO 门禁 + toDto 的客户/拍摄类型解析与空客户兜底、scheduledScan 的 PRO 工作室遍历。
  */
 @ExtendWith(MockitoExtension.class)
 class RepurchaseServiceTest {
@@ -77,7 +82,7 @@ class RepurchaseServiceTest {
         int created = service.scanStudio(1L, LocalDate.parse("2026-06-20"));
 
         assertEquals(1, created);
-        verify(reminderService, times(1))
+        verify(reminderService, org.mockito.Mockito.times(1))
                 .create(eq(1L), eq(null), eq(1L), eq(ReminderType.REPURCHASE), any());
     }
 
@@ -92,7 +97,7 @@ class RepurchaseServiceTest {
         int created = service.scanStudio(1L, LocalDate.parse("2026-06-20"));
 
         assertEquals(0, created);
-        verify(reminderService, never()).create(any(), any(), any(), any(), any());
+        verify(reminderService, org.mockito.Mockito.never()).create(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -100,5 +105,65 @@ class RepurchaseServiceTest {
         when(customerRepository.findRepurchaseCandidates(1L, LocalDate.parse("2026-06-20")))
                 .thenReturn(List.of());
         assertEquals(0, service.scanStudio(1L, LocalDate.parse("2026-06-20")));
+    }
+
+    // ========================= 本轮新增分支 =========================
+
+    @Test
+    void listTasksRequiresProAndResolvesCustomerAndShootType() {
+        doNothing().when(quotaService).requirePro(1L);
+        Reminder r = new Reminder();
+        r.setId(1L);
+        r.setStudioId(1L);
+        r.setCustomerId(5L);
+        r.setStatus(ReminderStatus.PENDING);
+        r.setType(ReminderType.REPURCHASE);
+        r.setDueAt(LocalDateTime.now());
+        when(reminderRepository.findByStudioIdAndTypeAndStatus(1L, ReminderType.REPURCHASE, ReminderStatus.PENDING))
+                .thenReturn(List.of(r));
+
+        Customer c = new Customer();
+        c.setId(5L);
+        c.setName("客户5");
+        c.setLastShootDate(LocalDate.now());
+        c.setRepurchaseCycleDays(200);
+        when(customerRepository.findById(5L)).thenReturn(Optional.of(c));
+
+        Order latest = new Order();
+        latest.setShootType("婚纱写真");
+        when(orderRepository.findLatestByStudioAndCustomer(1L, 5L)).thenReturn(Optional.of(latest));
+
+        List<RepurchaseTaskDTO> tasks = service.listTasks(1L);
+        assertEquals(1, tasks.size());
+        assertEquals("婚纱写真", tasks.get(0).getShootType());
+        assertEquals("客户5", tasks.get(0).getCustomerName());
+    }
+
+    @Test
+    void listTasksLeavesNullsWhenCustomerAbsent() {
+        doNothing().when(quotaService).requirePro(1L);
+        Reminder r = new Reminder();
+        r.setId(1L);
+        r.setStudioId(1L);
+        r.setCustomerId(null);
+        r.setStatus(ReminderStatus.PENDING);
+        r.setType(ReminderType.REPURCHASE);
+        when(reminderRepository.findByStudioIdAndTypeAndStatus(1L, ReminderType.REPURCHASE, ReminderStatus.PENDING))
+                .thenReturn(List.of(r));
+
+        List<RepurchaseTaskDTO> tasks = service.listTasks(1L);
+        assertNull(tasks.get(0).getCustomerName());
+        assertNull(tasks.get(0).getShootType());
+    }
+
+    @Test
+    void scheduledScanIteratesProStudiosWithoutException() {
+        Studio studio = new Studio();
+        studio.setId(1L);
+        when(studioRepository.findAllByPlanType("PRO")).thenReturn(List.of(studio));
+        when(customerRepository.findRepurchaseCandidates(1L, LocalDate.now())).thenReturn(List.of());
+
+        service.scheduledScan();
+        verify(studioRepository).findAllByPlanType("PRO");
     }
 }

@@ -18,16 +18,20 @@
 | 行 Line | 22.3% |
 | 方法 Method | 14.4% |
 
-**补测后结果（123 测，2026-08-17 补 15 个 controller 单测 + 3 个 service 单测）**
+**补测后结果（两轮，2026-08-17；最终 227 测试全绿，0 失败）**
 
-| 维度 | 覆盖率 | 提升 |
-|------|--------|------|
-| 指令 Instructions | **30.6%** | +16.8pp |
-| 分支 Branch | 5.5% | +0.8pp |
-| 行 Line | **46.1%** | +23.8pp |
-| 方法 Method | **52.2%** | +37.8pp |
+| 维度 | 覆盖率 | 较基线提升 |
+|------|--------|------------|
+| 指令 Instructions | **46.6%** | +32.8pp |
+| 分支 Branch | **13.3%** | +7.8pp（原 4.7% 分支基线 → 13.3%） |
+| 行 Line | **78.2%** | +55.9pp |
+| 方法 Method | **65.4%** | +51.0pp |
 
-**结论**：已补齐 15 个 controller 的 `MockMvc` 单测（standalone + mock service + `GlobalExceptionHandler` 异常校验）与 `AuthService`/`CustomerService`/`ScheduleService` 单测。分支覆盖仍偏低（controller 主路径少分支），如需进一步抬升可对 service 内部 if/else 分支补边界用例。
+**分阶段**：
+- 第一轮（123 测）：15 个 controller `MockMvc` 单测 + `AuthService`/`CustomerService`/`ScheduleService` 单测 → 指令 30.6% / 行 46.1% / 方法 52.2%。
+- 第二轮（227 测）：针对 `WechatService`/`QuoteCalibrationService`/`OrderService`/`CustomerService`/`RepurchaseService`/`SubscriptionService`/`ReminderService`/`ReminderRuleService` 补 if/else 双分支、null/空集合、异常与边界用例 → 分支 5.5%→13.3%，全项目行覆盖达 78.2%。
+
+**结论**：controller 与核心 service 的主路径 + 分支已基本覆盖；残余少量极深防御分支（特定异常 message、几乎不可达状态组合）可后续按需补充。
 
 > 报告明细见 `photographer-ai-backend/target/site/jacoco/index.html`（已随本消息附上）。
 
@@ -63,7 +67,7 @@
 
 ## 四、遗留决策点（未自动改，待拍板）
 1. **端口已统一为 8083**：8080 被其它服务占用、8081 是沙箱随机端口规避值，最终约定 backend 与三端 API 基址统一用 **8083**（`application.yml`、`web/.env`、小程序 `config/dev.js`、shared 回退默认均已改，架构文档同步更新）。
-2. **覆盖率（补测后 30.6% 指令 / 46.1% 行 / 52.2% 方法）**：已补 15 个 controller + 3 个 service 单测；分支覆盖仍低（5.5%），可对 service 分支补边界用例继续抬升。
+2. **覆盖率（两轮补测后 46.6% 指令 / 78.2% 行 / 65.4% 方法 / 13.3% 分支）**：已补 15 个 controller + 11 个 service 单测（含 8 个 service 分支补测），227 测试全绿；残余极深防御分支可后续按需补充。
 
 ## 五、交付文件
 - `photographer-ai-backend/pom.xml`（JaCoCo）
