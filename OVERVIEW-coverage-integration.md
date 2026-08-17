@@ -67,7 +67,7 @@
 
 ## 四、遗留决策点（未自动改，待拍板）
 1. **端口已统一为 8083**：8080 被其它服务占用、8081 是沙箱随机端口规避值，最终约定 backend 与三端 API 基址统一用 **8083**（`application.yml`、`web/.env`、小程序 `config/dev.js`、shared 回退默认均已改，架构文档同步更新）。
-2. **覆盖率（两轮补测后 46.6% 指令 / 78.2% 行 / 65.4% 方法 / 13.3% 分支）**：已补 15 个 controller + 11 个 service 单测（含 8 个 service 分支补测），227 测试全绿；残余极深防御分支可后续按需补充。
+2. **覆盖率（含真链路集成测试，最终 49.2% 指令 / 84.3% 行 / 68.8% 方法 / 14.0% 分支，236 测试全绿）**：已补 15 个 controller + 11 个 service 单测 + 5 个 `@SpringBootTest` 集成测试（auth/customer/order/quote/billing 端到端）；残余极深防御分支可后续按需补充。
 
 ## 五、交付文件
 - `photographer-ai-backend/pom.xml`（JaCoCo）
@@ -81,3 +81,17 @@
 - 下载 CI 上传的 `jacoco.csv` 核算，覆盖率与本地独立复核**完全一致**：
   - 指令 **46.4%** / 分支 **13.3%** / 行 **78.1%** / 方法 **65.4%**（本地：46.6% / 13.3% / 78.2% / 65.4%）。
 - 结论：测试在 CI 环境与本地一致可重现，无环境差异导致的红。
+
+## 七、真链路集成测试（2026-08-17，第三条建议）
+在纯 Mockito 单测之外，新增 **5 个 `@SpringBootTest` + `@AutoConfigureMockMvc` 端到端集成测试**，启动完整 Spring 上下文，打真实 controller → service → repository → 真 PostgreSQL，验证全栈链路可用。
+
+- 新增文件（`photographer-ai-backend/src/test/java/com/photogai/integration/`）：
+  - `AbstractIntegrationTest.java`：基类（`@SpringBootTest(MOCK)` + `@AutoConfigureMockMvc` + `@ActiveProfiles("test")` + `@Transactional`），提供 `registerAndLogin()`（真实 JWT 全链路）+ `authHeaders()`。
+  - `AuthIntegrationTest`（5 测）：注册返 token、登录成功、错误密码 401（"用户名或密码错误"）、无 token 受保护端点 401（"未登录或登录已过期"）、带 token 访问 200。
+  - `CustomerIntegrationTest`（1 测）：客户建→列→详→改→删全 CRUD。
+  - `OrderIntegrationTest`（1 测）：建客户→建订单→列表→详情→状态流转 CONSULT→DEPOSIT。
+  - `QuoteIntegrationTest`（1 测）：AI 报价走规则价降级，返回 200 + 报价区间。
+  - `BillingIntegrationTest`（1 测）：订阅下单（mock 支付）→ 模拟支付 → 查询订阅状态。
+- 测试 profile：`src/test/resources/application-test.yml`（jwt 固定测试密钥、`app.payment.mock=true`、Flyway 开启）。
+- **隔离策略**：本地默认连隔离库 `photogai_it`（不污染联调用的 `photogai`）；CI 通过 backend job 的 `DB_URL` 指向 postgres service 的 `photogai`（Flyway 已验证可用），故 **CI 无需改动**即可跑通。
+- **结果**：9 个集成测试全绿；全量 **236 测试（227 单测 + 9 集成）全绿**，最终覆盖率 指令 49.2% / 行 84.3% / 方法 68.8% / 分支 14.0%。
