@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -317,5 +318,275 @@ class OrderServiceTest {
 
         assertEquals(shoot, cust.getLastShootDate());
         assertEquals(Integer.valueOf(365), cust.getRepurchaseCycleDays());
+    }
+
+    // ========================= create: 非 null 分支 =========================
+
+    @Test
+    void createWithStatusUsesProvidedStatus() {
+        OrderCreateRequest req = OrderCreateRequest.builder()
+                .customerId(2L).title("t").status(OrderStatus.DEPOSIT).build();
+        doNothing().when(quotaService).ensureWithinLimit(1L);
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+        doNothing().when(quotaService).recountOrders(1L);
+        when(customerRepository.findByStudioIdAndIdAndDeletedAtIsNull(1L, 2L))
+                .thenReturn(Optional.of(customer(2L, 1L)));
+
+        OrderDTO dto = service.create(1L, 1L, req);
+        assertEquals(OrderStatus.DEPOSIT, dto.getStatus());
+    }
+
+    @Test
+    void createWithCurrencyUsesProvided() {
+        OrderCreateRequest req = OrderCreateRequest.builder()
+                .customerId(2L).title("t").currency("USD").build();
+        doNothing().when(quotaService).ensureWithinLimit(1L);
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+        doNothing().when(quotaService).recountOrders(1L);
+        when(customerRepository.findByStudioIdAndIdAndDeletedAtIsNull(1L, 2L))
+                .thenReturn(Optional.of(customer(2L, 1L)));
+
+        OrderDTO dto = service.create(1L, 1L, req);
+        assertEquals("USD", dto.getCurrency());
+    }
+
+    // ========================= update: 其余可空字段 + 改期冲突分支 =========================
+
+    @Test
+    void updateAppliesAllRemainingNullableFields() {
+        Order o = owned(1L, 1L, 2L, OrderStatus.CONSULT);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(o));
+        OrderUpdateRequest req = OrderUpdateRequest.builder()
+                .region("华东").style("轻奢").photoCount(10).durationHours(2)
+                .shootEndDate(LocalDate.of(2026, 6, 1))
+                .shootType("婚纱写真").depositAmount(BigDecimal.TEN)
+                .quoteSuggestion("建议").currency("USD").build();
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+        when(customerRepository.findByStudioIdAndIdAndDeletedAtIsNull(1L, 2L))
+                .thenReturn(Optional.of(customer(2L, 1L)));
+
+        OrderDTO dto = service.update(1L, 1L, req);
+        assertEquals("华东", dto.getRegion());
+        assertEquals("轻奢", dto.getStyle());
+        assertEquals(Integer.valueOf(10), dto.getPhotoCount());
+        assertEquals(Integer.valueOf(2), dto.getDurationHours());
+        assertEquals(LocalDate.of(2026, 6, 1), dto.getShootEndDate());
+        assertEquals("婚纱写真", dto.getShootType());
+        assertEquals(BigDecimal.TEN, dto.getDepositAmount());
+        assertEquals("建议", dto.getQuoteSuggestion());
+        assertEquals("USD", dto.getCurrency());
+    }
+
+    @Test
+    void updateShootEndDateChangeWithShootDateTriggersConflictCheck() {
+        Order o = owned(1L, 1L, 2L, OrderStatus.CONSULT);
+        o.setShootDate(LocalDate.of(2026, 1, 1));
+        o.setShootEndDate(null);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(o));
+        OrderUpdateRequest req = OrderUpdateRequest.builder()
+                .shootDate(LocalDate.of(2026, 1, 1))   // 不变
+                .shootEndDate(LocalDate.of(2026, 1, 2)) // 变更
+                .build();
+        when(scheduleConflictService.checkConflict(eq(1L), any(), any(), eq(1L)))
+                .thenReturn(List.of());
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+        when(customerRepository.findByStudioIdAndIdAndDeletedAtIsNull(1L, 2L))
+                .thenReturn(Optional.of(customer(2L, 1L)));
+
+        OrderDTO dto = service.update(1L, 1L, req);
+        assertEquals(LocalDate.of(2026, 1, 2), dto.getShootEndDate());
+        verify(scheduleConflictService).checkConflict(eq(1L), any(), any(), eq(1L));
+    }
+
+    @Test
+    void updateShootEndDateChangeWithNullShootDateSkipsConflict() {
+        Order o = owned(1L, 1L, 2L, OrderStatus.CONSULT);
+        o.setShootDate(null);
+        o.setShootEndDate(null);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(o));
+        OrderUpdateRequest req = OrderUpdateRequest.builder()
+                .shootEndDate(LocalDate.of(2026, 1, 2))
+                .build();
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+        when(customerRepository.findByStudioIdAndIdAndDeletedAtIsNull(1L, 2L))
+                .thenReturn(Optional.of(customer(2L, 1L)));
+
+        service.update(1L, 1L, req);
+        verify(scheduleConflictService, never()).checkConflict(anyLong(), any(), any(), any());
+    }
+
+    @Test
+    void updateNoDateChangeSkipsConflict() {
+        Order o = owned(1L, 1L, 2L, OrderStatus.CONSULT);
+        o.setShootDate(LocalDate.of(2026, 1, 1));
+        o.setShootEndDate(LocalDate.of(2026, 1, 2));
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(o));
+        OrderUpdateRequest req = OrderUpdateRequest.builder().title("newTitle").build();
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+        when(customerRepository.findByStudioIdAndIdAndDeletedAtIsNull(1L, 2L))
+                .thenReturn(Optional.of(customer(2L, 1L)));
+
+        service.update(1L, 1L, req);
+        verify(scheduleConflictService, never()).checkConflict(anyLong(), any(), any(), any());
+    }
+
+    // ========================= assign: 成员不存在 =========================
+
+    @Test
+    void assignWithMemberNotBelongingThrows() {
+        Order o = owned(1L, 1L, 2L, OrderStatus.CONSULT);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(o));
+        when(userRepository.findByStudioIdAndId(1L, 9L)).thenReturn(Optional.empty());
+
+        BizException ex = assertThrows(BizException.class,
+                () -> service.assign(1L, 1L, 9L, 1L, "OWNER"));
+        assertEquals(ErrorCode.NOT_FOUND.getCode(), ex.getCode());
+    }
+
+    // ========================= changeStatus: SHOOT / EDIT / default / DELIVER 回填 =========================
+
+    @Test
+    void changeStatusToShootTriggersShootReminder() {
+        Order o = owned(1L, 1L, 2L, OrderStatus.DEPOSIT);
+        o.setShootDate(LocalDate.of(2026, 5, 1));
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(o));
+        when(orderStateMachine.canTransition(OrderStatus.DEPOSIT, OrderStatus.SHOOT)).thenReturn(true);
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+        when(reminderRuleService.findOffset(1L, ReminderTriggerEvent.SHOOT)).thenReturn(3);
+        doNothing().when(reminderService)
+                .create(anyLong(), any(), anyLong(), any(ReminderType.class), any());
+        when(statusHistoryRepository.findByOrderIdOrderByCreatedAtDesc(1L)).thenReturn(List.of());
+        when(statusHistoryRepository.save(any(StatusHistory.class))).thenAnswer(i -> i.getArgument(0));
+        when(customerRepository.findByStudioIdAndIdAndDeletedAtIsNull(1L, 2L))
+                .thenReturn(Optional.of(customer(2L, 1L)));
+
+        OrderDTO dto = service.changeStatus(1L, 1L,
+                StatusChangeRequest.builder().toStatus(OrderStatus.SHOOT).build(), 1L);
+        assertEquals(OrderStatus.SHOOT, dto.getStatus());
+        verify(reminderService).create(anyLong(), any(), anyLong(), any(ReminderType.class), any());
+    }
+
+    @Test
+    void changeStatusToEditTriggersEditReminder() {
+        Order o = owned(1L, 1L, 2L, OrderStatus.SHOOT);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(o));
+        when(orderStateMachine.canTransition(OrderStatus.SHOOT, OrderStatus.EDIT)).thenReturn(true);
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+        when(reminderRuleService.findOffset(1L, ReminderTriggerEvent.EDIT)).thenReturn(3);
+        doNothing().when(reminderService)
+                .create(anyLong(), any(), anyLong(), any(ReminderType.class), any());
+        when(statusHistoryRepository.findByOrderIdOrderByCreatedAtDesc(1L)).thenReturn(List.of());
+        when(statusHistoryRepository.save(any(StatusHistory.class))).thenAnswer(i -> i.getArgument(0));
+        when(customerRepository.findByStudioIdAndIdAndDeletedAtIsNull(1L, 2L))
+                .thenReturn(Optional.of(customer(2L, 1L)));
+
+        OrderDTO dto = service.changeStatus(1L, 1L,
+                StatusChangeRequest.builder().toStatus(OrderStatus.EDIT).build(), 1L);
+        assertEquals(OrderStatus.EDIT, dto.getStatus());
+        verify(reminderService).create(anyLong(), any(), anyLong(), any(ReminderType.class), any());
+    }
+
+    @Test
+    void changeStatusToConsultHitsDefaultNoReminder() {
+        Order o = owned(1L, 1L, 2L, OrderStatus.DELIVER);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(o));
+        when(orderStateMachine.canTransition(OrderStatus.DELIVER, OrderStatus.CONSULT)).thenReturn(true);
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+        when(statusHistoryRepository.findByOrderIdOrderByCreatedAtDesc(1L)).thenReturn(List.of());
+        when(statusHistoryRepository.save(any(StatusHistory.class))).thenAnswer(i -> i.getArgument(0));
+        when(customerRepository.findByStudioIdAndIdAndDeletedAtIsNull(1L, 2L))
+                .thenReturn(Optional.of(customer(2L, 1L)));
+
+        OrderDTO dto = service.changeStatus(1L, 1L,
+                StatusChangeRequest.builder().toStatus(OrderStatus.CONSULT).build(), 1L);
+        assertEquals(OrderStatus.CONSULT, dto.getStatus());
+        verify(reminderService, never()).create(anyLong(), any(), anyLong(), any(ReminderType.class), any());
+    }
+
+    @Test
+    void changeStatusToDeliverWithNullShootDateSkipsBackfill() {
+        Order o = owned(1L, 1L, 2L, OrderStatus.EDIT);
+        o.setShootDate(null);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(o));
+        when(orderStateMachine.canTransition(OrderStatus.EDIT, OrderStatus.DELIVER)).thenReturn(true);
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+        when(reminderRuleService.findOffset(1L, ReminderTriggerEvent.DELIVER)).thenReturn(3);
+        doNothing().when(reminderService)
+                .create(anyLong(), any(), anyLong(), any(ReminderType.class), any());
+        when(statusHistoryRepository.findByOrderIdOrderByCreatedAtDesc(1L)).thenReturn(List.of());
+        when(statusHistoryRepository.save(any(StatusHistory.class))).thenAnswer(i -> i.getArgument(0));
+        when(customerRepository.findByStudioIdAndIdAndDeletedAtIsNull(1L, 2L))
+                .thenReturn(Optional.empty());
+
+        service.changeStatus(1L, 1L,
+                StatusChangeRequest.builder().toStatus(OrderStatus.DELIVER).build(), 1L);
+        verify(customerRepository, never()).save(any(Customer.class));
+    }
+
+    @Test
+    void changeStatusToDeliverWithMissingCustomerSkipsBackfill() {
+        Order o = owned(1L, 1L, 2L, OrderStatus.EDIT);
+        o.setShootDate(LocalDate.of(2026, 5, 1));
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(o));
+        when(orderStateMachine.canTransition(OrderStatus.EDIT, OrderStatus.DELIVER)).thenReturn(true);
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+        when(reminderRuleService.findOffset(1L, ReminderTriggerEvent.DELIVER)).thenReturn(3);
+        doNothing().when(reminderService)
+                .create(anyLong(), any(), anyLong(), any(ReminderType.class), any());
+        when(statusHistoryRepository.findByOrderIdOrderByCreatedAtDesc(1L)).thenReturn(List.of());
+        when(statusHistoryRepository.save(any(StatusHistory.class))).thenAnswer(i -> i.getArgument(0));
+        when(customerRepository.findByStudioIdAndIdAndDeletedAtIsNull(1L, 2L))
+                .thenReturn(Optional.empty());
+
+        service.changeStatus(1L, 1L,
+                StatusChangeRequest.builder().toStatus(OrderStatus.DELIVER).build(), 1L);
+        verify(customerRepository, never()).save(any(Customer.class));
+    }
+
+    @Test
+    void changeStatusToDeliverWithUnchangedCustomerSkipsSave() {
+        Order o = owned(1L, 1L, 2L, OrderStatus.EDIT);
+        o.setShootDate(LocalDate.of(2026, 5, 1));
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(o));
+        when(orderStateMachine.canTransition(OrderStatus.EDIT, OrderStatus.DELIVER)).thenReturn(true);
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+        when(reminderRuleService.findOffset(1L, ReminderTriggerEvent.DELIVER)).thenReturn(3);
+        doNothing().when(reminderService)
+                .create(anyLong(), any(), anyLong(), any(ReminderType.class), any());
+        when(statusHistoryRepository.findByOrderIdOrderByCreatedAtDesc(1L)).thenReturn(List.of());
+        when(statusHistoryRepository.save(any(StatusHistory.class))).thenAnswer(i -> i.getArgument(0));
+
+        Customer cust = customer(2L, 1L);
+        cust.setLastShootDate(LocalDate.of(2026, 6, 1)); // 已晚于拍摄日
+        cust.setRepurchaseCycleDays(100);               // 已设置
+        when(customerRepository.findByStudioIdAndIdAndDeletedAtIsNull(1L, 2L))
+                .thenReturn(Optional.of(cust));
+
+        service.changeStatus(1L, 1L,
+                StatusChangeRequest.builder().toStatus(OrderStatus.DELIVER).build(), 1L);
+        verify(customerRepository, never()).save(any(Customer.class));
+    }
+
+    // ========================= get: 多租户隔离 + 客户名缺失 =========================
+
+    @Test
+    void getWithWrongStudioIdThrowsNotFound() {
+        Order o = owned(1L, 2L, 2L, OrderStatus.CONSULT); // studioId=2 != 传入 1
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(o));
+
+        BizException ex = assertThrows(BizException.class, () -> service.get(1L, 1L));
+        assertEquals(ErrorCode.NOT_FOUND.getCode(), ex.getCode());
+    }
+
+    @Test
+    void getWithMissingCustomerNameReturnsNull() {
+        Order o = owned(1L, 1L, 2L, OrderStatus.CONSULT);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(o));
+        when(statusHistoryRepository.findByOrderIdOrderByCreatedAtDesc(1L)).thenReturn(List.of());
+        when(customerRepository.findByStudioIdAndIdAndDeletedAtIsNull(1L, 2L))
+                .thenReturn(Optional.empty());
+
+        OrderDTO dto = service.get(1L, 1L);
+        assertNull(dto.getCustomerName());
     }
 }

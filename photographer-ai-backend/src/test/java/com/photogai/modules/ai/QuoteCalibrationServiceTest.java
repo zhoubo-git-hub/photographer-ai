@@ -1,7 +1,9 @@
 package com.photogai.modules.ai;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -10,6 +12,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import org.mockito.ArgumentCaptor;
 
 import com.photogai.common.ErrorCode;
 import com.photogai.exception.BizException;
@@ -231,5 +235,210 @@ class QuoteCalibrationServiceTest {
         q.setStatus("APPLIED");
         when(calibrationRepository.findByStudioIdAndStatus(1L, "APPLIED")).thenReturn(List.of(q));
         assertEquals(BigDecimal.valueOf(1.2), service.appliedCoef(1L, "上海", "婚纱写真", "轻奢"));
+    }
+
+    // ========================= list: 越界 note 分支 =========================
+
+    @Test
+    void listMapsBoundaryExceededNote() {
+        doNothing().when(subscriptionService).requirePro(1L);
+        when(orderRepository.findByStudioIdAndDeletedAtIsNull(1L)).thenReturn(List.of());
+
+        QuoteCalibration q = new QuoteCalibration();
+        q.setId(3L);
+        q.setStudioId(1L);
+        q.setDimensionKey("北京|亲子");
+        q.setDimensionLabel("北京·亲子");
+        q.setSampleCount(30);
+        q.setSuggestedCoef(BigDecimal.valueOf(1.2));
+        q.setOffsetPct(20);
+        q.setWithinBoundary(false);
+        q.setStatus("PENDING");
+        when(calibrationRepository.findByStudioId(1L)).thenReturn(List.of(q));
+
+        List<QuoteCalibrationDTO> dtos = service.list(1L);
+        assertEquals(1, dtos.size());
+        assertEquals("已达安全边界（单次≤±15%）", dtos.get(0).getNote());
+    }
+
+    // ========================= scan: 维度键 / 更新 / 边界 / 过滤 / 系数分支 =========================
+
+    @Test
+    void scanWithBlankStyleUsesRegionShootTypeKey() {
+        Order o = deal(OrderStatus.DELIVER, BigDecimal.valueOf(4000), "上海", "婚纱写真", "");
+        when(orderRepository.findByStudioIdAndDeletedAtIsNull(1L)).thenReturn(List.of(o));
+        when(calibrationRepository.findByStudioIdAndDimensionKey(anyLong(), anyString()))
+                .thenReturn(Optional.empty());
+        when(calibrationRepository.save(any(QuoteCalibration.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.scan(1L);
+
+        ArgumentCaptor<QuoteCalibration> captor = ArgumentCaptor.forClass(QuoteCalibration.class);
+        verify(calibrationRepository, times(1)).save(captor.capture());
+        assertEquals("上海|婚纱写真", captor.getValue().getDimensionKey());
+        assertEquals("上海·婚纱写真", captor.getValue().getDimensionLabel());
+    }
+
+    @Test
+    void scanUpdatesExistingPendingSuggestion() {
+        Order o = deal(OrderStatus.DELIVER, BigDecimal.valueOf(4000), "上海", "婚纱写真", "轻奢");
+        when(orderRepository.findByStudioIdAndDeletedAtIsNull(1L)).thenReturn(List.of(o));
+
+        QuoteCalibration existing = new QuoteCalibration();
+        existing.setStudioId(1L);
+        existing.setDimensionKey("上海|婚纱写真|轻奢");
+        existing.setDimensionLabel("上海·婚纱写真·轻奢");
+        existing.setCurrentCoef(BigDecimal.ONE);
+        existing.setStatus("PENDING");
+        when(calibrationRepository.findByStudioIdAndDimensionKey(1L, "上海|婚纱写真|轻奢"))
+                .thenReturn(Optional.of(existing));
+        when(calibrationRepository.save(any(QuoteCalibration.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.scan(1L);
+        verify(calibrationRepository, times(1)).save(any(QuoteCalibration.class));
+    }
+
+    @Test
+    void scanWithSufficientSampleSavesWithinBoundary() {
+        List<Order> deals = new java.util.ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            deals.add(deal(OrderStatus.DELIVER, BigDecimal.valueOf(4138), "上海", "婚纱写真", "轻奢"));
+        }
+        when(orderRepository.findByStudioIdAndDeletedAtIsNull(1L)).thenReturn(deals);
+        when(calibrationRepository.findByStudioIdAndDimensionKey(anyLong(), anyString()))
+                .thenReturn(Optional.empty());
+        when(calibrationRepository.save(any(QuoteCalibration.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.scan(1L);
+
+        ArgumentCaptor<QuoteCalibration> captor = ArgumentCaptor.forClass(QuoteCalibration.class);
+        verify(calibrationRepository, times(1)).save(captor.capture());
+        assertTrue(captor.getValue().isWithinBoundary());
+    }
+
+    @Test
+    void scanClampsUpperOffsetAndSaves() {
+        List<Order> deals = new java.util.ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            deals.add(deal(OrderStatus.DELIVER, BigDecimal.valueOf(6000), "上海", "婚纱写真", "轻奢"));
+        }
+        when(orderRepository.findByStudioIdAndDeletedAtIsNull(1L)).thenReturn(deals);
+        when(calibrationRepository.findByStudioIdAndDimensionKey(anyLong(), anyString()))
+                .thenReturn(Optional.empty());
+        when(calibrationRepository.save(any(QuoteCalibration.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.scan(1L);
+
+        ArgumentCaptor<QuoteCalibration> captor = ArgumentCaptor.forClass(QuoteCalibration.class);
+        verify(calibrationRepository, times(1)).save(captor.capture());
+        assertEquals(15, captor.getValue().getOffsetPct());   // 截断到 +15
+        assertTrue(captor.getValue().isWithinBoundary());      // 样本充足 → 边界内
+    }
+
+    @Test
+    void scanClampsLowerOffsetAndSaves() {
+        List<Order> deals = new java.util.ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            deals.add(deal(OrderStatus.DELIVER, BigDecimal.valueOf(2000), "上海", "婚纱写真", "轻奢"));
+        }
+        when(orderRepository.findByStudioIdAndDeletedAtIsNull(1L)).thenReturn(deals);
+        when(calibrationRepository.findByStudioIdAndDimensionKey(anyLong(), anyString()))
+                .thenReturn(Optional.empty());
+        when(calibrationRepository.save(any(QuoteCalibration.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.scan(1L);
+
+        ArgumentCaptor<QuoteCalibration> captor = ArgumentCaptor.forClass(QuoteCalibration.class);
+        verify(calibrationRepository, times(1)).save(captor.capture());
+        assertEquals(-15, captor.getValue().getOffsetPct());  // 截断到 -15
+    }
+
+    @Test
+    void scanWithInsufficientSampleSavesOutOfBoundary() {
+        List<Order> deals = new java.util.ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            deals.add(deal(OrderStatus.DELIVER, BigDecimal.valueOf(6000), "上海", "婚纱写真", "轻奢"));
+        }
+        when(orderRepository.findByStudioIdAndDeletedAtIsNull(1L)).thenReturn(deals);
+        when(calibrationRepository.findByStudioIdAndDimensionKey(anyLong(), anyString()))
+                .thenReturn(Optional.empty());
+        when(calibrationRepository.save(any(QuoteCalibration.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.scan(1L);
+
+        ArgumentCaptor<QuoteCalibration> captor = ArgumentCaptor.forClass(QuoteCalibration.class);
+        verify(calibrationRepository, times(1)).save(captor.capture());
+        assertEquals(15, captor.getValue().getOffsetPct());
+        assertFalse(captor.getValue().isWithinBoundary());     // 样本不足 → 越界保存分支
+    }
+
+    @Test
+    void scanFiltersNonDealOrders() {
+        Order nonDeal = deal(OrderStatus.CONSULT, BigDecimal.valueOf(4000), "上海", "婚纱写真", "轻奢");
+        Order nullAmount = deal(OrderStatus.DELIVER, null, "上海", "婚纱写真", "轻奢");
+        Order blankRegion = deal(OrderStatus.DELIVER, BigDecimal.valueOf(4000), "", "婚纱写真", "轻奢");
+        Order blankShoot = deal(OrderStatus.DELIVER, BigDecimal.valueOf(4000), "上海", "", "轻奢");
+        when(orderRepository.findByStudioIdAndDeletedAtIsNull(1L))
+                .thenReturn(List.of(nonDeal, nullAmount, blankRegion, blankShoot));
+
+        service.scan(1L);
+        verify(calibrationRepository, never()).save(any(QuoteCalibration.class));
+    }
+
+    @Test
+    void scanCoversAllStyleCoefBranches() {
+        String[] styles = {"轻奢", "高级感", "复古", "简约", "韩式", "自然", "测试风"};
+        List<Order> deals = new java.util.ArrayList<>();
+        for (String s : styles) {
+            deals.add(deal(OrderStatus.DELIVER, BigDecimal.valueOf(4138), "上海", "婚纱写真", s));
+        }
+        when(orderRepository.findByStudioIdAndDeletedAtIsNull(1L)).thenReturn(deals);
+        when(calibrationRepository.findByStudioIdAndDimensionKey(anyLong(), anyString()))
+                .thenReturn(Optional.empty());
+        when(calibrationRepository.save(any(QuoteCalibration.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.scan(1L);
+
+        ArgumentCaptor<QuoteCalibration> captor = ArgumentCaptor.forClass(QuoteCalibration.class);
+        verify(calibrationRepository, times(7)).save(captor.capture());
+        assertEquals(7, captor.getAllValues().size());
+    }
+
+    @Test
+    void scanCoversRegionCoefBranches() {
+        Order tier1 = deal(OrderStatus.DELIVER, BigDecimal.valueOf(3598), "北京", "婚纱写真", null);
+        Order tier2 = deal(OrderStatus.DELIVER, BigDecimal.valueOf(3299), "成都", "婚纱写真", null);
+        Order other = deal(OrderStatus.DELIVER, BigDecimal.valueOf(2999), "昆明", "婚纱写真", null);
+        when(orderRepository.findByStudioIdAndDeletedAtIsNull(1L))
+                .thenReturn(List.of(tier1, tier2, other));
+        when(calibrationRepository.findByStudioIdAndDimensionKey(anyLong(), anyString()))
+                .thenReturn(Optional.empty());
+        when(calibrationRepository.save(any(QuoteCalibration.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.scan(1L);
+
+        ArgumentCaptor<QuoteCalibration> captor = ArgumentCaptor.forClass(QuoteCalibration.class);
+        verify(calibrationRepository, times(3)).save(captor.capture());
+    }
+
+    @Test
+    void scanWithUnknownShootTypeUsesDefaultBasePrice() {
+        Order o = deal(OrderStatus.DELIVER, BigDecimal.valueOf(1792), "上海", "测试类型", "轻奢");
+        when(orderRepository.findByStudioIdAndDeletedAtIsNull(1L)).thenReturn(List.of(o));
+        when(calibrationRepository.findByStudioIdAndDimensionKey(anyLong(), anyString()))
+                .thenReturn(Optional.empty());
+        when(calibrationRepository.save(any(QuoteCalibration.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.scan(1L);
+        verify(calibrationRepository, times(1)).save(any(QuoteCalibration.class));
+    }
+
+    // ========================= appliedCoef: 无 style 维度键 =========================
+
+    @Test
+    void appliedCoefWithBlankStyleUsesRegionShootTypeKey() {
+        when(subscriptionService.isPro(1L)).thenReturn(true);
+        when(calibrationRepository.findByStudioIdAndStatus(1L, "APPLIED")).thenReturn(List.of());
+        assertEquals(BigDecimal.ONE, service.appliedCoef(1L, "上海", "婚纱写真", ""));
     }
 }
