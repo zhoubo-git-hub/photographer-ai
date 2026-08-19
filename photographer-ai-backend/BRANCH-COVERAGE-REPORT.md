@@ -1,20 +1,21 @@
 # 后端 JaCoCo 分支覆盖率提升报告
 
-> 两阶段完成。原始目标 30%+，最终达到 **89.4%**。
+> 三阶段完成。原始目标 30%+，最终达到 **90.1%**。
 > 阶段一：14.0% → 60.2%（反射式批量 DTO 覆盖）
-> 阶段二：60.2% → **89.4%**（DTO equals 逐字段变体闭合 + 3 个 0% 分支类行为测试）
+> 阶段二：60.2% → 89.4%（DTO equals 逐字段变体闭合 + 3 个 0% 分支类行为测试）
+> 阶段三：89.4% → **90.1%**（`LlmClient` 降级分支 8% → 95.8%）
 
 ## 总览
 
-| 指标 | 起点 | 阶段一后 | 阶段二后（当前） |
-| --- | --- | --- | --- |
-| 分支覆盖 | 413 / 2959 = **14.0%** | 1781 / 2959 = **60.2%** | **2645 / 2959 = 89.4%** |
-| 行覆盖 | — | — | 2329 / 2674 = **87.1%** |
-| 指令覆盖 | — | — | 23596 / 26414 = **89.3%** |
-| 0% 分支类数 | 44 | 3 | **0** |
-| 全量单测 | 227 例全绿 | 237 例全绿 | **241 例全绿** |
+| 指标 | 起点 | 阶段一后 | 阶段二后 | 阶段三后（当前） |
+| --- | --- | --- | --- | --- |
+| 分支覆盖 | 413 / 2959 = **14.0%** | 1781 / 2959 = **60.2%** | 2645 / 2959 = **89.4%** | **2666 / 2959 = 90.1%** |
+| 行覆盖 | — | — | 2329 / 2674 = 87.1% | 2398 / 2674 = **89.7%** |
+| 指令覆盖 | — | — | 23596 / 26414 = 89.3% | 23938 / 26414 = **90.6%** |
+| 0% 分支类数 | 44 | 3 | **0** | **0** |
+| 全量单测 | 227 例全绿 | 237 例全绿 | 241 例全绿 | **259 例全绿** |
 
-全量命令：`mvn clean test`（surefire 已排除 `*IntegrationTest`）→ `Tests run: 241, Failures: 0, Errors: 0, Skipped: 0`，`BUILD SUCCESS`。
+全量命令：`mvn clean test`（surefire 已排除 `*IntegrationTest`）→ `Tests run: 259, Failures: 0, Errors: 0, Skipped: 0`，`BUILD SUCCESS`。
 
 ---
 
@@ -100,6 +101,38 @@ if (this$x == null ? other$x != null : !this$x.equals(other$x)) return false;
 
 ---
 
+## 阶段三：LlmClient 降级分支闭合（89.4% → 90.1%）
+
+### 背景
+
+`LlmClient` 是 AI 链路的入口（报价 `complete` / 沟通 `chat`）。它的降级分支直接对应「LLM 不可用时不得抛 500 给用户」的产品约束，但阶段二时分支覆盖仅 **2/24 = 8%**。阶段三专攻它。
+
+### 交付物
+
+`src/test/java/com/photogai/modules/ai/LlmClientTest.java`（**18 例，断言全实打实**）：
+- 纯 `new LlmClient(restClient)` + `ReflectionTestUtils.setField` 注入 `@Value` 私有字段（baseUrl/apiKey/model），**不启 Spring 上下文、不连 PG**；
+- `RestClient` 用显式 Mockito 链式 mock（`post → uri → header → body → retrieve → body(String.class)`），非法/异常用例 `thenThrow`；
+- `guardPromptLength`（private）用反射 `getDeclaredMethod(...).setAccessible(true)` 调用，覆盖 null/截断边界。
+
+### 覆盖要点
+
+| 分支 | 覆盖手段 | 断言 |
+| --- | --- | --- |
+| `complete` / `chat`：apiKey==null / blank | setField 改回 null / `"  "` | 抛 `IllegalStateException`，message 含「未配置」/「降级为规则模板」 |
+| 合法 JSON → `QuoteResponse` | mock 返回合法 JSON | 断言 priceLow/priceHigh（BigDecimal）/ basis / script 真实值 |
+| 围栏包裹 ` ```json ... ``` ` | mock 返回带围栏串 | 去围栏后正确解析 |
+| 非法 JSON（"not json"） | mock 返回坏串 | 抛 `IllegalStateException` 含「响应解析失败」 |
+| 上游 `RestClientResponseException`（HTTP 500） | `mock(RestClientResponseException.class)` + `thenThrow` | 抛 `IllegalStateException` 含「上游服务异常（HTTP 500）」 |
+| `guardPromptLength` 截断 | total > MAX（8000）且 user 超 budget | 返回 `user.substring(0, budget)` 截断串 |
+| `guardPromptLength` null 短接 | user==null 且 total>MAX | 返回 null（覆盖 `user == null` 短接） |
+
+### 结果
+
+`LlmClient`：**23 / 24 = 95.8%** 分支、100% 指令、100% 行、100% 方法。
+唯一 miss 的是 `LlmClient.java:136` 三元 `user == null || user.length() <= budget` 中 `user.length() <= budget` 的「true 侧」——因 `total > MAX` 时 `user.length() > budget` 恒成立，数学不可达（死代码），**23/24 即为该类可达分支上限**，无需再补。
+
+---
+
 ## 交付文件清单
 
 | 文件 | 状态 |
@@ -108,6 +141,7 @@ if (this$x == null ? other$x != null : !this$x.equals(other$x)) return false;
 | `src/test/java/com/photogai/modules/billing/WechatPaymentGatewayTest.java` | 阶段二新增 |
 | `src/test/java/com/photogai/modules/billing/MockPaymentGatewayTest.java` | 阶段二新增 |
 | `src/test/java/com/photogai/config/WechatConfigTest.java` | 阶段二新增 |
+| `src/test/java/com/photogai/modules/ai/LlmClientTest.java` | 阶段三新增（18 例，LlmClient 95.8%） |
 
 全程**未修改 `src/main` 生产代码**。
 
@@ -121,7 +155,7 @@ DTO / Lombok 生成分支已基本榨干（97.2%，仅剩 62 个）。剩余缺�
 | --- | --- | --- |
 | `OrderService` | 31 | 44/75 = 59% |
 | `QuoteCalibrationService` | 24 | 37/61 = 61% |
-| `LlmClient` | 22 | 2/24 = 8% |
+| ~~`LlmClient`~~ | ~~22~~ | ✅ **23/24 = 95.8%**（阶段三已补） |
 | `ContractService` | 22 | 26/48 = 54% |
 | `WechatService` | 20 | 62/82 = 76% |
 | `AiCommService` | 18 | 29/47 = 62% |
@@ -130,6 +164,7 @@ DTO / Lombok 生成分支已基本榨干（97.2%，仅剩 62 个）。剩余缺�
 
 ### 后续建议
 
-- `LlmClient` 仅 8%，是 AI 链路的降级逻辑所在（LLM 不可用时报价降级规则价、沟通降级话术模板），建议优先补——它的分支直接对应「不得抛 500 给用户」的产品约束。
+- `LlmClient` 已补到 95.8%（23/24，仅剩 line 136 数学不可达死分支），AI 降级逻辑全覆盖，满足「不得抛 500 给用户」约束。
+- 若要把分支覆盖进一步推过 92%，优先顺序是 `OrderService`(31) → `QuoteCalibrationService`(24) → `ContractService`(22)。这三者合计 77 分支，补完约 +2.6pt。
 - `DtoBranchCoverageTest` 的 `TARGETS` 列表需随新增 DTO 同步扩充，低成本维持覆盖率。
 - 可在 CI 加 JaCoCo `check` 门禁（如分支率下限 85%）防止回退。
