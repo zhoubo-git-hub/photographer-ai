@@ -141,13 +141,13 @@ jobs:
           distribution: 'corretto'
           cache: 'maven'
 
-      - name: Build and test (Maven)
+      - name: Build, test & enforce coverage gate (Maven)
         working-directory: photographer-ai-backend
-        run: mvn -B test
+        run: mvn -B verify
 
-      # JaCoCo 覆盖率报告（HTML/CSV/XML）由 mvn test 的 jacoco report 阶段产出。
-      # 上传为构件，便于在 CI 页面直接下载查看；不设置阈值卡点（当前基线约 14% 指令覆盖，
-      # 后续补 controller/集成测试提升，避免因阈值失败阻断流水线）。
+      # JaCoCo 覆盖率报告（HTML/CSV/XML）由 mvn verify 的 jacoco report 阶段产出，
+      # 并通过 jacoco:check 强制分支覆盖率 >= 90% 的门禁（rules 见 pom.xml）。
+      # 当前基线 94.42%（五阶段累计），门禁留约 4pt 余量；跌破 90% 则 CI 红灯防回退。
       - name: Upload JaCoCo coverage report
         if: always()
         uses: actions/upload-artifact@v4
