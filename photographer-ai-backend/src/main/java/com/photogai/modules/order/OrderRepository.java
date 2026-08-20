@@ -50,18 +50,25 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     List<Order> findByStudioIdAndStatusInAndDeletedAtIsNull(
             Long studioId, java.util.Collection<OrderStatus> statuses);
 
-    /** 同一 studio 内与候选时间段重叠的未删除订单（用于档期冲突硬阻断）。 */
+    /**
+     * 同一 studio 内与候选时间段重叠的未删除订单（用于档期冲突硬阻断）。
+     *
+     * <p>:endDate 由调用方保证非 null（缺省已在 ScheduleConflictService 兜底为 shootDate），
+     * 故此处直接与 date 列比较以让 Hibernate 正确推断 JDBC 类型，避免
+     * COALESCE(:endDate, :start) 或 :endDate IS NULL 导致的
+     * PostgreSQL 42883(date<=text) / 42P18(无法确定参数类型)。
+     */
     @Query("""
            SELECT o FROM Order o
            WHERE o.studioId = :studioId AND o.deletedAt IS NULL
              AND (:excludeOrderId IS NULL OR o.id <> :excludeOrderId)
              AND o.shootDate IS NOT NULL
              AND COALESCE(o.shootEndDate, o.shootDate) >= :start
-             AND o.shootDate <= COALESCE(:end, :start)
+             AND o.shootDate <= :endDate
            """)
     List<Order> findConflicts(@Param("studioId") Long studioId,
                               @Param("start") LocalDate start,
-                              @Param("end") LocalDate end,
+                              @Param("endDate") LocalDate endDate,
                               @Param("excludeOrderId") Long excludeOrderId);
 
     /** 某月（含跨天）有拍摄排期的未删除订单。 */

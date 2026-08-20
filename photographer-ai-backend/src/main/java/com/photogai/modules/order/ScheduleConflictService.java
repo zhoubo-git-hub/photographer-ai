@@ -33,8 +33,12 @@ public class ScheduleConflictService {
         if (shootDate == null) {
             return List.of();
         }
+        // 候选结束日缺省为拍摄开始日：避免在 SQL 中对「可能为 null 的参数」做类型推断
+        // （Hibernate + PostgreSQL 会对仅出现在 IS NULL / COALESCE 中的参数报
+        // 42883 date<=text 或 42P18 无法确定数据类型）。
+        LocalDate end = shootEndDate != null ? shootEndDate : shootDate;
         List<Order> conflicts = orderRepository.findConflicts(
-                studioId, shootDate, shootEndDate, excludeOrderId);
+                studioId, shootDate, end, excludeOrderId);
         return conflicts.stream()
                 .map(o -> ConflictDTO.builder()
                         .orderId(o.getId())
