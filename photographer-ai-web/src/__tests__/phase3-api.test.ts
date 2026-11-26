@@ -34,6 +34,14 @@ vi.mock('axios', () => {
   return { default: { create: () => client } };
 });
 
+// shared 包经 pnpm workspace symlink 引入，vitest 会为其加载独立的 axios 实例，
+// 导致上方 vi.mock('axios') 无法覆盖到 @photogai/shared/http 的 axios，
+// 进而 teamApi/dashboardApi 实际发出真实请求（无 token → 401）。
+// 故直接 mock 共享包的 request，使其与 web 端共用同一个 mocks.request 断言桩。
+vi.mock('@photogai/shared/http', () => ({
+  request: mocks.request,
+}));
+
 describe('阶段3 API 模块契约（billing/team/dashboard/calibration）', () => {
   beforeAll(() => {
     const store = new Map<string, string>();
